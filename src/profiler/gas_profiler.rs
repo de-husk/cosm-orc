@@ -28,7 +28,7 @@ pub struct DeployInfo {
   pub address: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct GasReport {
   pub gas_wanted: u64,
   pub gas_used: u64,
@@ -201,6 +201,12 @@ impl GasProfiler {
     println!("{:?}", self.contract_map);
     println!("{:?}", self.report);
 
+    Ok(())
+  }
+
+  pub fn write_report(&self, file_path: &str) -> Result<()> {
+    let json = serde_json::to_string(&self.report)?;
+    fs::write(file_path, json).context("Unable to write file")?;
     Ok(())
   }
 }
