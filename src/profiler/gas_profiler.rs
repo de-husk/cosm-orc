@@ -41,7 +41,6 @@ pub enum WasmMsg<X: Serialize, Y: Serialize, Z: Serialize> {
 
 impl GasProfiler {
   pub fn new(cfg: Config) -> Self {
-    env_logger::init();
     let mut contract_map = HashMap::new();
 
     for (name, code_id) in &cfg.code_ids {
