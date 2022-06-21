@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
+use log::{debug, info};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-
 use std::fs;
 use std::path::Path;
 
@@ -10,7 +10,6 @@ use crate::profiler::command::{exec_msg, CommandType};
 use crate::profiler::config::Config;
 
 // TODO:
-// * Setup logger / configurable log levels
 // * Add yaml configuration loading
 // * Add CI steps to build, test, and push to crates.io
 
@@ -72,7 +71,7 @@ impl GasProfiler {
     for wasm in fs::read_dir(wasm_path)? {
       let wasm_path = wasm?.path();
       if wasm_path.extension() == Some(OsStr::new("wasm")) {
-        println!("Storing {:?}", wasm_path);
+        info!("Storing {:?}", wasm_path);
 
         let json = exec_msg(
           &self.cfg.chain_cfg.binary,
@@ -193,13 +192,13 @@ impl GasProfiler {
             &[addr, json, "--output".to_string(), "json".to_string()],
           )?;
 
-          println!("{}", json);
+          debug!("{}", json);
         }
       }
     }
 
-    println!("{:?}", self.contract_map);
-    println!("{:?}", self.report);
+    debug!("{:?}", self.contract_map);
+    debug!("{:?}", self.report);
 
     Ok(())
   }
