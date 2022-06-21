@@ -32,6 +32,6 @@ impl Config {
 
         let cfg = settings.try_deserialize::<Config>()?;
 
-        return Ok(cfg);
+        Ok(cfg)
     }
 }
