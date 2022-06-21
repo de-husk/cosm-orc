@@ -1,0 +1,26 @@
+on:
+  workflow_run:
+    workflows: ["Build"]
+    branches: [main]
+    types:
+      - completed
+
+name: Release
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    if: "${{ github.event.workflow_run.conclusion == 'success' }} && !contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      # TODO:
+      # * Bump package version in Cargo.toml
+      # * Open a PR for now (eventually make a github release / auto push to crates.io)
+
+  release:
+    runs-on: ubuntu-latest
+    if: "${{ github.event.workflow_run.conclusion == 'success' }} && contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2

@@ -1,0 +1,59 @@
+on: [push, pull_request]
+
+name: Build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Build package
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: nightly
+          command: build
+
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: nightly
+          command: test
+        env:
+          RUST_BACKTRACE: 1
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: nightly
+          command: fmt
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          toolchain: nightly
+          command: clippy
+          args: --all-targets -- -D warnings
