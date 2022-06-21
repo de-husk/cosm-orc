@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
+use log::error;
 use serde_json::Value;
-use std::io::{self, Write};
 use std::process::Command;
 
 pub enum CommandType {
@@ -21,13 +21,13 @@ pub fn exec_msg(binary: &str, cmd_type: CommandType, args: &[String]) -> Result<
   let res = Command::new(binary).args(&base_args).args(args).output()?;
 
   if !res.status.success() {
-    io::stderr().write_all(&res.stderr)?;
+    error!("{}", String::from_utf8(res.stderr)?);
     bail!("invalid args");
   }
 
   let json: Value = serde_json::from_slice(&res.stdout)?;
   if json["code"].is_number() && json["code"] != 0 {
-    println!("{}", json["raw_log"]);
+    error!("{}", json["raw_log"]);
     bail!("error processing message on chain");
   }
 
