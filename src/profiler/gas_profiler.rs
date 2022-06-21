@@ -10,7 +10,6 @@ use crate::profiler::command::{exec_msg, CommandType};
 use crate::profiler::config::Config;
 
 // TODO:
-// * Add yaml configuration loading
 // * Add CI steps to build, test, and push to crates.io
 
 pub struct GasProfiler {

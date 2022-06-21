@@ -1,6 +1,15 @@
 # Cosmos Gas Profiler
 
-## Github Action
+## Configuration
 
-## Local Usage
+### Yaml File
+
+### Environment Variables
+
+### Manual Struct Config
+
+## Usage
+### Github Action
+
+### Local Usage
 
