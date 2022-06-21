@@ -1,0 +1,17 @@
+on: push
+  branches:
+    - main
+
+name: Build / Lint
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.user.login, 'bot@dehusk.xyz')" 
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+    
+    # TODO: 
+    # * Bump package version in Cargo.toml
+    # * Open a PR for now (eventually make a github release / auto push to crates.io)
