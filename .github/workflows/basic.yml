@@ -31,6 +31,8 @@ jobs:
           RUST_BACKTRACE: 1
 
   lint:
+    runs-on: ubuntu-latest
+    steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
