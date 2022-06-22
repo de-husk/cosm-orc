@@ -17,7 +17,7 @@
 //! ```no_run
 //! # use anyhow::Result;
 //! # use cosm_orc::{
-//! #    config::config::Config,
+//! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
 //! # };
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
