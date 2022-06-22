@@ -1,7 +1,17 @@
 [package]
-name = "cosmos-gas-profiler"
+name = "cosm-orc"
 version = "0.1.0"
 edition = "2021"
+authors = ["Harry Hull <harry.hull1@gmail.com>"]
+
+readme = "README.md"
+description = "Cosmwasm smart contract orchestration and gas profiling library"
+repository = "https://github.com/de-husk/cosm-orc.git"
+
+keywords = ["cosmwasm", "smart-contract", "profiling"]
+categories = ["cosmwasm", "smart-contract", "cosmos", "blockchain"]
+license = "Apache-2.0"
+
 
 [dependencies]
 anyhow = { version = "1.0.51"}
