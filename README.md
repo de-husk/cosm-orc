@@ -22,7 +22,7 @@ Potential uses:
     use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
     fn main() -> Result<()> {
-        // config.yaml has the cw20_base code_id already stored
+        // juno_cfg.yaml has the cw20_base code_id already stored
         // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
         let mut cosm_orc = CosmOrc::new(Config::from_yaml("./examples/juno_cfg.yaml")?);
 
@@ -39,6 +39,7 @@ Potential uses:
         ];
 
         cosm_orc.process_msgs("cw20_base".to_string(), &msgs)?;
+
         Ok(())
   }
 ```

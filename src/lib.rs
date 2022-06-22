@@ -14,7 +14,7 @@
 //!
 //! # Quick Start
 //!
-//! ```
+//! ```no_run
 //! # use anyhow::Result;
 //! # use cosm_orc::{
 //! #    config::config::Config,
