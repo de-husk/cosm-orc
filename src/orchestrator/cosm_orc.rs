@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::Path;
 
-use crate::config::config::Config;
+use crate::config::cfg::Config;
 use crate::orchestrator::command::{exec_msg, CommandType};
 use crate::profilers::profiler::{Profiler, Report};
 
@@ -15,7 +15,6 @@ use crate::profilers::profiler::{Profiler, Report};
 pub struct CosmOrc {
     cfg: Config,
     pub contract_map: HashMap<ContractName, DeployInfo>,
-
     profilers: Vec<Box<dyn Profiler>>,
 }
 
