@@ -1,7 +1,7 @@
 on:
   workflow_run:
     workflows: ["Build"]
-    branches: [main]
+    branches: [de-husk/cargo-bump] # TODO: Switch to main once this is working
     types:
       - completed
 
@@ -10,18 +10,30 @@ name: Release
 jobs:
   bump-version:
     runs-on: ubuntu-latest
-    if: "${{ github.event.workflow_run.conclusion == 'success' }} && !contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
+    if: "github.event.workflow_run.conclusion == 'success' && !contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-      # TODO:
-      # * Bump package version in Cargo.toml
-      # * Open a PR for now (eventually make a github release / auto push to crates.io)
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: Install cargo cargo-edit
+        run: cargo install cargo-edit
+
+      - name: Bump cargo version
+        run: cargo set-version --bump patch
+
+      # TODO: Open a PR
 
   release:
     runs-on: ubuntu-latest
     # TODO: This check seems to be broken....
-    if: "${{ github.event.workflow_run.conclusion == 'success' }} && contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
+    if: "github.event.workflow_run.conclusion == 'success' && contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
