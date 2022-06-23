@@ -54,7 +54,7 @@ impl CosmOrc {
         }
     }
 
-    /// Used to add profiler to be used during message execution.
+    /// Used to add a profiler to be used during message execution.
     /// Call multiple times to add additional Profilers.
     pub fn add_profiler(mut self, p: Box<dyn Profiler>) -> Self {
         self.profilers.push(p);
