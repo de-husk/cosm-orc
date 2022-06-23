@@ -4,24 +4,6 @@ chain_cfg:
   denom: "ujunox"
   chain_id: "testing"
   rpc_endpoint: "http://localhost:26657/"
-tx_flags:
-  - "--gas-prices"
-  - "0.1ujunox" # TODO: Do some templating instead of repeating these values again
-  - "--gas"
-  - "auto"
-  - "--gas-adjustment"
-  - "1.5"
-  - "-y"
-  - "-b"
-  - "block"
-  - "--chain-id"
-  - "testing"
-  - "--node"
-  - "http://localhost:26657/"
-  - "--from"
-  - "localnet"
-  - "--output"
-  - "json"
 
 code_ids:
   "cw20_base": "1"
