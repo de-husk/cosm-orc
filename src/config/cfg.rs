@@ -38,7 +38,7 @@ impl Config {
 
         Ok(Config {
             tx_flags: Self::build_tx_flags(&cfg),
-            cfg: cfg,
+            cfg,
         })
     }
 
