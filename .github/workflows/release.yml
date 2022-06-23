@@ -20,6 +20,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
+    # TODO: This check seems to be broken....
     if: "${{ github.event.workflow_run.conclusion == 'success' }} && contains(github.event.pull_request.user.login, 'release-bot@dehusk.xyz')"
     steps:
       - name: Checkout sources

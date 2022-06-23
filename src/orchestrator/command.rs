@@ -3,6 +3,7 @@ use log::error;
 use serde_json::Value;
 use std::process::Command;
 
+#[derive(PartialEq, Eq)]
 pub enum CommandType {
     Store,
     Instantiate,

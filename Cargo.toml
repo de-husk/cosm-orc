@@ -1,7 +1,17 @@
 [package]
-name = "cosmos-gas-profiler"
+name = "cosm-orc"
 version = "0.1.0"
 edition = "2021"
+authors = ["Harry Hull <harry.hull1@gmail.com>"]
+
+readme = "README.md"
+description = "Cosmwasm smart contract orchestration and gas profiling library"
+repository = "https://github.com/de-husk/cosm-orc.git"
+
+keywords = ["cosmwasm", "smart-contract", "profiling"]
+categories = ["cosmwasm", "smart-contract", "cosmos", "blockchain"]
+license = "Apache-2.0"
+
 
 [dependencies]
 anyhow = { version = "1.0.51"}
@@ -9,3 +19,6 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = "1.0"
 log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
+
+[dev-dependencies]
+cw20-base = "0.13"
