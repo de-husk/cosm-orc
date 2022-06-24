@@ -24,7 +24,7 @@
 //! # fn main() -> Result<()> {
 //!     // config.yaml has the cw20_base code_id already stored
 //!     // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-//!     let mut cosm_orc = CosmOrc::new(Config::from_yaml("./examples/juno_cfg.yaml")?);
+//!     let mut cosm_orc = CosmOrc::new(Config::from_yaml("./examples/juno_local.yaml")?);
 //!
 //!     let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
 //!         WasmMsg::InstantiateMsg(InstantiateMsg {

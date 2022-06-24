@@ -14,6 +14,7 @@ pub struct Cfg {
     pub chain_cfg: ChainCfg,
     // used to configure already stored code_id dependencies
     // TODO: Just switch out `u64` for `DeployInfo` to allow users to already have the contract addr configured as well
+    #[serde(default)]
     pub code_ids: HashMap<String, u64>,
     // key used to sign the transactions
     pub key_name: String,

@@ -5,8 +5,8 @@ chain_cfg:
   chain_id: "testing"
   rpc_endpoint: "http://localhost:26657/"
 
-code_ids:
-  "cw20_base": "1"
-  "cw4_group": "2"
+# code_ids:
+#   "cw20_base": "1"
+#   "cw4_group": "2"
 
 key_name: "localnet"
