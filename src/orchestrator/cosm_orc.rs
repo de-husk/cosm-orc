@@ -214,7 +214,14 @@ impl CosmOrc {
                 let json = exec_msg(
                     &self.cfg.chain_cfg.binary,
                     CommandType::Query,
-                    &[addr, json, "--output".to_string(), "json".to_string()],
+                    &[
+                        addr,
+                        json,
+                        "--node".to_string(),
+                        self.cfg.chain_cfg.rpc_endpoint.clone(),
+                        "--output".to_string(),
+                        "json".to_string(),
+                    ],
                 )?;
 
                 for prof in &mut self.profilers {
