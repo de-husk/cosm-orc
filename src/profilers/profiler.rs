@@ -11,6 +11,12 @@ pub struct Report {
 }
 
 pub trait Profiler {
-    fn instrument(&mut self, op_name: String, op_type: CommandType, json: &Value) -> Result<()>;
+    fn instrument(
+        &mut self,
+        contract: String,
+        op_name: String,
+        op_type: CommandType,
+        json: &Value,
+    ) -> Result<()>;
     fn report(&self) -> Result<Report>;
 }

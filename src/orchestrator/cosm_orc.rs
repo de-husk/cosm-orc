@@ -65,6 +65,8 @@ impl CosmOrc {
     // I should make it more general purpose and just return a byte slice of the json
     // for general consumption through any library, so they dont have to use serde.
 
+    // TODO: Implement a `store_contract()` that takes in a single wasm file as well
+
     /// Uploads the contracts in `wasm_dir` to the configured chain
     /// saving the resulting contract ids in `contract_map` and
     /// returning the raw cosmos json responses.
@@ -98,13 +100,15 @@ impl CosmOrc {
                     .context("value is not a string")?
                     .parse()?;
 
+                let contract = wasm_path
+                    .file_stem()
+                    .context("wasm_path has invalid filename")?
+                    .to_str()
+                    .context("wasm_path has invalid unicode chars")?
+                    .to_string();
+
                 self.contract_map.insert(
-                    wasm_path
-                        .file_stem()
-                        .context("wasm_path has invalid filename")?
-                        .to_str()
-                        .context("wasm_path has invalid unicode chars")?
-                        .to_string(),
+                    contract.clone(),
                     DeployInfo {
                         code_id,
                         address: None,
@@ -112,7 +116,12 @@ impl CosmOrc {
                 );
 
                 for prof in &mut self.profilers {
-                    prof.instrument("Store_TODO".to_string(), CommandType::Store, &json)?;
+                    prof.instrument(
+                        contract.clone(),
+                        "Store".to_string(),
+                        CommandType::Store,
+                        &json,
+                    )?;
                 }
 
                 responses.push(json);
@@ -139,6 +148,12 @@ impl CosmOrc {
 
     /// Executes a single smart contract operation against the configured chain
     /// returning the raw cosmos json response.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Err`] if `contract_name` does not have a `DeployInfo` entry in `self.contract_map`.
+    /// `contract_name` needs to be configured in `Config.code_ids`
+    /// or `CosmOrc::store_contracts()` needs to be called with the `contract_name.wasm` in the passed directory.
     pub fn process_msg<X: Serialize, Y: Serialize, Z: Serialize>(
         &mut self,
         contract_name: String,
@@ -171,7 +186,8 @@ impl CosmOrc {
 
                 for prof in &mut self.profilers {
                     prof.instrument(
-                        "Instantiate_TODO".to_string(),
+                        contract_name.clone(),
+                        type_name(m),
                         CommandType::Instantiate,
                         &json,
                     )?;
@@ -199,7 +215,12 @@ impl CosmOrc {
                 )?;
 
                 for prof in &mut self.profilers {
-                    prof.instrument("Execute_TODO".to_string(), CommandType::Execute, &json)?;
+                    prof.instrument(
+                        contract_name.clone(),
+                        type_name(m),
+                        CommandType::Execute,
+                        &json,
+                    )?;
                 }
 
                 json
@@ -225,7 +246,12 @@ impl CosmOrc {
                 )?;
 
                 for prof in &mut self.profilers {
-                    prof.instrument("Query_TODO".to_string(), CommandType::Query, &json)?;
+                    prof.instrument(
+                        contract_name.clone(),
+                        type_name(m),
+                        CommandType::Query,
+                        &json,
+                    )?;
                 }
 
                 json
@@ -245,4 +271,8 @@ impl CosmOrc {
 
         Ok(reports)
     }
+}
+
+fn type_name<T>(_: &T) -> String {
+    std::any::type_name::<T>().to_string()
 }
