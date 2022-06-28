@@ -8,7 +8,7 @@ use crate::profilers::profiler::{Profiler, Report};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GasProfiler {
-    report: HashMap<String, GasReport>,
+    report: HashMap<String, HashMap<String, GasReport>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,13 +32,20 @@ impl Default for GasProfiler {
 }
 
 impl Profiler for GasProfiler {
-    fn instrument(&mut self, op_name: String, op_type: CommandType, json: &Value) -> Result<()> {
+    fn instrument(
+        &mut self,
+        contract: String,
+        op_name: String,
+        op_type: CommandType,
+        json: &Value,
+    ) -> Result<()> {
         if op_type == CommandType::Query {
             // Wasm Query msgs don't cost gas
             return Ok(());
         }
 
-        self.report.insert(
+        let m = self.report.entry(contract).or_default();
+        m.insert(
             op_name,
             GasReport {
                 gas_used: json["gas_used"].as_str().context("not string")?.parse()?,
