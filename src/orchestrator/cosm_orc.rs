@@ -26,7 +26,12 @@ pub struct DeployInfo {
     pub address: Option<String>,
 }
 
-pub enum WasmMsg<X: Serialize, Y: Serialize, Z: Serialize> {
+pub enum WasmMsg<X, Y, Z>
+where
+    X: Serialize,
+    Y: Serialize,
+    Z: Serialize,
+{
     InstantiateMsg(X),
     ExecuteMsg(Y),
     QueryMsg(Z),
@@ -116,10 +121,14 @@ impl CosmOrc {
                 );
 
                 for prof in &mut self.profilers {
+                    let mut map = serde_json::Map::new();
+                    map.insert("store".to_string(), Value::Null);
+
                     prof.instrument(
                         contract.clone(),
                         "Store".to_string(),
                         CommandType::Store,
+                        &Value::Object(map),
                         &json,
                     )?;
                 }
@@ -132,11 +141,16 @@ impl CosmOrc {
 
     /// Executes multiple smart contract operations against the configured chain
     /// returning the raw cosmos json responses.
-    pub fn process_msgs<X: Serialize, Y: Serialize, Z: Serialize>(
+    pub fn process_msgs<X, Y, Z>(
         &mut self,
         contract_name: String,
         msgs: &[WasmMsg<X, Y, Z>],
-    ) -> Result<Vec<Value>> {
+    ) -> Result<Vec<Value>>
+    where
+        X: Serialize,
+        Y: Serialize,
+        Z: Serialize,
+    {
         let mut responses = vec![];
         for msg in msgs {
             let json = self.process_msg(contract_name.clone(), msg)?;
@@ -154,11 +168,16 @@ impl CosmOrc {
     /// Returns [`Err`] if `contract_name` does not have a `DeployInfo` entry in `self.contract_map`.
     /// `contract_name` needs to be configured in `Config.code_ids`
     /// or `CosmOrc::store_contracts()` needs to be called with the `contract_name.wasm` in the passed directory.
-    pub fn process_msg<X: Serialize, Y: Serialize, Z: Serialize>(
+    pub fn process_msg<X, Y, Z>(
         &mut self,
         contract_name: String,
         msg: &WasmMsg<X, Y, Z>,
-    ) -> Result<Value> {
+    ) -> Result<Value>
+    where
+        X: Serialize,
+        Y: Serialize,
+        Z: Serialize,
+    {
         let deploy_info = self
             .contract_map
             .get_mut(&contract_name)
@@ -166,7 +185,7 @@ impl CosmOrc {
 
         let json = match msg {
             WasmMsg::InstantiateMsg(m) => {
-                let json = serde_json::to_string(&m)?;
+                let input_json = serde_json::to_value(&m)?;
 
                 let json = exec_msg(
                     &self.cfg.chain_cfg.binary,
@@ -174,7 +193,7 @@ impl CosmOrc {
                     &[
                         vec![
                             deploy_info.code_id.to_string(),
-                            json,
+                            input_json.to_string(),
                             "--label".to_string(),
                             "gas profiler".to_string(),
                             "--no-admin".to_string(), // TODO: Allow for configurable admin addr to be passed
@@ -189,6 +208,7 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Instantiate,
+                        &input_json,
                         &json,
                     )?;
                 }
@@ -202,7 +222,7 @@ impl CosmOrc {
                 json
             }
             WasmMsg::ExecuteMsg(m) => {
-                let json = serde_json::to_value(&m)?;
+                let input_json = serde_json::to_value(&m)?;
                 let addr = deploy_info
                     .address
                     .clone()
@@ -211,7 +231,11 @@ impl CosmOrc {
                 let json = exec_msg(
                     &self.cfg.chain_cfg.binary,
                     CommandType::Execute,
-                    &[vec![addr, json.to_string()], self.cfg.tx_flags.clone()].concat(),
+                    &[
+                        vec![addr, input_json.to_string()],
+                        self.cfg.tx_flags.clone(),
+                    ]
+                    .concat(),
                 )?;
 
                 for prof in &mut self.profilers {
@@ -219,6 +243,7 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Execute,
+                        &input_json,
                         &json,
                     )?;
                 }
@@ -226,7 +251,7 @@ impl CosmOrc {
                 json
             }
             WasmMsg::QueryMsg(m) => {
-                let json = serde_json::to_string(&m)?;
+                let input_json = serde_json::to_value(&m)?;
                 let addr = deploy_info
                     .address
                     .clone()
@@ -237,7 +262,7 @@ impl CosmOrc {
                     CommandType::Query,
                     &[
                         addr,
-                        json,
+                        input_json.to_string(),
                         "--node".to_string(),
                         self.cfg.chain_cfg.rpc_endpoint.clone(),
                         "--output".to_string(),
@@ -250,6 +275,7 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Query,
+                        &input_json,
                         &json,
                     )?;
                 }
@@ -273,6 +299,7 @@ impl CosmOrc {
     }
 }
 
+// TODO: Put this function and op_key() and hash() into a util module
 fn type_name<T>(_: &T) -> String {
     std::any::type_name::<T>().to_string()
 }

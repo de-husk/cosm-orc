@@ -16,7 +16,8 @@ pub trait Profiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        json: &Value,
+        input_json: &Value,
+        output_json: &Value,
     ) -> Result<()>;
     fn report(&self) -> Result<Report>;
 }
