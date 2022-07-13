@@ -32,7 +32,6 @@ impl Config {
     pub fn from_yaml(file: &str) -> Result<Config> {
         let settings = _Config::builder()
             .add_source(config::File::with_name(file))
-            .add_source(config::Environment::with_prefix("GAS"))
             .build()?;
 
         let cfg = settings.try_deserialize::<Cfg>()?;

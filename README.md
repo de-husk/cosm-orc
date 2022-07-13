@@ -13,6 +13,8 @@ Potential uses:
 * Deployments / Bootstrapping environments
 * Gas profiling
 
+Currently, Cosm-orc works by accessing a local cosmos chain binary, ex: `junod`. Support for [Rust Cosmos-SDK](https://github.com/cosmos/cosmos-rust/tree/main/cosmrs) coming soon.
+
 ## Quick Start
  ```rust
     use anyhow::Result;
@@ -45,18 +47,11 @@ Potential uses:
   }
 ```
 
+See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
+
 
 ## Configuration
 
-### Yaml File
 
-### Environment Variables
-
-### Manual Struct Config
-
-## Usage
-
-### Github Action
-
-### Local Usage
+See [./examples](./examples/) directory for example yaml configs.
 
