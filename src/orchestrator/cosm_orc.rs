@@ -219,7 +219,7 @@ impl CosmOrc {
                     .context("not string")?
                     .to_string();
 
-                (*deploy_info).address = Some(addr);
+                deploy_info.address = Some(addr);
                 json
             }
             WasmMsg::ExecuteMsg(m) => {

@@ -8,7 +8,7 @@ pub fn type_name<T>(_: &T) -> String {
 
 pub fn op_key(input_json: &Value) -> Option<String> {
     let (k, _) = input_json.as_object()?.iter().next()?;
-    return Some(format!("{}#{}", k, hash(input_json.to_string())));
+    Some(format!("{}#{}", k, hash(input_json.to_string())))
 }
 
 pub fn hash(s: String) -> u64 {
