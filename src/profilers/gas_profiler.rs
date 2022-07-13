@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 
 use crate::orchestrator::command::CommandType;
 use crate::profilers::profiler::{Profiler, Report};
+use crate::util::key_str::op_key;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GasProfiler {
@@ -80,15 +79,4 @@ impl Profiler for GasProfiler {
             json_data: json,
         })
     }
-}
-
-fn op_key(input_json: &Value) -> Option<String> {
-    let (k, _) = input_json.as_object()?.iter().next()?;
-    return Some(format!("{}#{}", k, hash(input_json.to_string())));
-}
-
-fn hash(s: String) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
 }

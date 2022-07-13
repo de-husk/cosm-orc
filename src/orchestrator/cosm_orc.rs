@@ -10,6 +10,7 @@ use std::path::Path;
 use crate::config::cfg::Config;
 use crate::orchestrator::command::{exec_msg, CommandType};
 use crate::profilers::profiler::{Profiler, Report};
+use crate::util::key_str::type_name;
 
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 pub struct CosmOrc {
@@ -297,9 +298,4 @@ impl CosmOrc {
 
         Ok(reports)
     }
-}
-
-// TODO: Put this function and op_key() and hash() into a util module
-fn type_name<T>(_: &T) -> String {
-    std::any::type_name::<T>().to_string()
 }
