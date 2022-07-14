@@ -47,11 +47,16 @@ impl Profiler for GasProfiler {
             return Ok(());
         }
 
-        let op_key = format!(
-            "{}__{}",
-            op_name,
-            op_key(input_json).context("invalid json")?,
-        );
+        let op_key = if op_type == CommandType::Instantiate {
+            // Instantiate messages are not enums like query and execute
+            op_name
+        } else {
+            format!(
+                "{}__{}",
+                op_name,
+                op_key(input_json).context("invalid json")?,
+            )
+        };
 
         let m = self.report.entry(contract).or_default();
         m.insert(
