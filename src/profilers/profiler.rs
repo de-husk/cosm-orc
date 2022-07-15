@@ -1,7 +1,7 @@
 use anyhow::Result;
-use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::panic::Location;
 
 use crate::orchestrator::command::CommandType;
 
@@ -18,7 +18,7 @@ pub trait Profiler {
         op_name: String,
         op_type: CommandType,
         output_json: &Value,
-        backtrace: &Backtrace,
+        caller_loc: &Location,
         msg_idx: usize,
     ) -> Result<()>;
     fn report(&self) -> Result<Report>;

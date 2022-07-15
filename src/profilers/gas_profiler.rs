@@ -1,12 +1,11 @@
 use anyhow::{Context, Result};
-use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::panic::Location;
 
 use crate::orchestrator::command::CommandType;
 use crate::profilers::profiler::{Profiler, Report};
-use crate::util::key_str::process_backtrace;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GasProfiler {
@@ -18,7 +17,7 @@ pub struct GasReport {
     gas_wanted: u64,
     gas_used: u64,
     file_name: String,
-    line_number: u64,
+    line_number: u32,
 }
 
 impl GasProfiler {
@@ -42,7 +41,7 @@ impl Profiler for GasProfiler {
         op_name: String,
         op_type: CommandType,
         output_json: &Value,
-        backtrace: &Backtrace,
+        caller_loc: &Location,
         msg_idx: usize,
     ) -> Result<()> {
         if op_type == CommandType::Query {
@@ -50,11 +49,8 @@ impl Profiler for GasProfiler {
             return Ok(());
         }
 
-        let (caller_file_name, caller_line_number) = match process_backtrace(backtrace) {
-            Some(frame) => frame,
-            None => ("unknown_file".to_string(), 0),
-        };
-
+        let caller_file_name = caller_loc.file().to_string();
+        let caller_line_number = caller_loc.line();
         let op_key = format!(
             "{}__{}:{}[{}]",
             op_name, caller_file_name, caller_line_number, msg_idx
