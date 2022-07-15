@@ -1,11 +1,12 @@
 use anyhow::{Context, Result};
+use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::orchestrator::command::CommandType;
 use crate::profilers::profiler::{Profiler, Report};
-use crate::util::key_str::op_key;
+use crate::util::key_str::process_backtrace;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GasProfiler {
@@ -16,7 +17,8 @@ pub struct GasProfiler {
 pub struct GasReport {
     gas_wanted: u64,
     gas_used: u64,
-    payload: String,
+    file_name: String,
+    line_number: u64,
 }
 
 impl GasProfiler {
@@ -39,24 +41,24 @@ impl Profiler for GasProfiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        input_json: &Value,
         output_json: &Value,
+        backtrace: &Backtrace,
+        msg_idx: usize,
     ) -> Result<()> {
         if op_type == CommandType::Query {
             // Wasm Query msgs don't cost gas
             return Ok(());
         }
 
-        let op_key = if op_type == CommandType::Instantiate {
-            // Instantiate messages are not enums like query and execute
-            op_name
-        } else {
-            format!(
-                "{}__{}",
-                op_name,
-                op_key(input_json).context("invalid json")?,
-            )
+        let (caller_file_name, caller_line_number) = match process_backtrace(backtrace) {
+            Some(frame) => frame,
+            None => ("unknown_file".to_string(), 0),
         };
+
+        let op_key = format!(
+            "{}__{}:{}[{}]",
+            op_name, caller_file_name, caller_line_number, msg_idx
+        );
 
         let m = self.report.entry(contract).or_default();
         m.insert(
@@ -70,7 +72,8 @@ impl Profiler for GasProfiler {
                     .as_str()
                     .context("not string")?
                     .parse()?,
-                payload: input_json.to_string(),
+                file_name: caller_file_name,
+                line_number: caller_line_number,
             },
         );
 
