@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use backtrace::Backtrace;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -80,6 +81,7 @@ impl CosmOrc {
     /// You don't need to call this function if all of the smart contract ids
     /// are already configured via `cfg.code_ids`.
     pub fn store_contracts(&mut self, wasm_dir: &str) -> Result<Vec<Value>> {
+        let backtrace = Backtrace::new();
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -122,15 +124,13 @@ impl CosmOrc {
                 );
 
                 for prof in &mut self.profilers {
-                    let mut map = serde_json::Map::new();
-                    map.insert("store".to_string(), Value::Null);
-
                     prof.instrument(
                         contract.clone(),
                         "Store".to_string(),
                         CommandType::Store,
-                        &Value::Object(map),
                         &json,
+                        &backtrace,
+                        0,
                     )?;
                 }
 
@@ -153,8 +153,8 @@ impl CosmOrc {
         Z: Serialize,
     {
         let mut responses = vec![];
-        for msg in msgs {
-            let json = self.process_msg(contract_name.clone(), msg)?;
+        for (idx, msg) in msgs.iter().enumerate() {
+            let json = self.process_msg_internal(contract_name.clone(), msg, idx)?;
             responses.push(json);
         }
 
@@ -179,6 +179,23 @@ impl CosmOrc {
         Y: Serialize,
         Z: Serialize,
     {
+        self.process_msg_internal(contract_name, msg, 0)
+    }
+
+    // process_msg_internal is a private method with an index
+    // of the passed in message for profiler bookeeping
+    fn process_msg_internal<X, Y, Z>(
+        &mut self,
+        contract_name: String,
+        msg: &WasmMsg<X, Y, Z>,
+        idx: usize,
+    ) -> Result<Value>
+    where
+        X: Serialize,
+        Y: Serialize,
+        Z: Serialize,
+    {
+        let backtrace = Backtrace::new();
         let deploy_info = self
             .contract_map
             .get_mut(&contract_name)
@@ -209,8 +226,9 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Instantiate,
-                        &input_json,
                         &json,
+                        &backtrace,
+                        idx,
                     )?;
                 }
 
@@ -244,8 +262,9 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Execute,
-                        &input_json,
                         &json,
+                        &backtrace,
+                        idx,
                     )?;
                 }
 
@@ -276,8 +295,9 @@ impl CosmOrc {
                         contract_name.clone(),
                         type_name(m),
                         CommandType::Query,
-                        &input_json,
                         &json,
+                        &backtrace,
+                        idx,
                     )?;
                 }
 

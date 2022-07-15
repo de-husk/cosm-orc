@@ -1,4 +1,5 @@
 use anyhow::Result;
+use backtrace::Backtrace;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -16,8 +17,9 @@ pub trait Profiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        input_json: &Value,
         output_json: &Value,
+        backtrace: &Backtrace,
+        msg_idx: usize,
     ) -> Result<()>;
     fn report(&self) -> Result<Report>;
 }
