@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
-use backtrace::Backtrace;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
+use std::panic::Location;
 use std::path::Path;
 
 use crate::config::cfg::Config;
@@ -80,8 +80,9 @@ impl CosmOrc {
     ///
     /// You don't need to call this function if all of the smart contract ids
     /// are already configured via `cfg.code_ids`.
+    #[track_caller]
     pub fn store_contracts(&mut self, wasm_dir: &str) -> Result<Vec<Value>> {
-        let backtrace = Backtrace::new();
+        let caller_loc = Location::caller();
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -129,7 +130,7 @@ impl CosmOrc {
                         "Store".to_string(),
                         CommandType::Store,
                         &json,
-                        &backtrace,
+                        caller_loc,
                         0,
                     )?;
                 }
@@ -142,6 +143,7 @@ impl CosmOrc {
 
     /// Executes multiple smart contract operations against the configured chain
     /// returning the raw cosmos json responses.
+    #[track_caller]
     pub fn process_msgs<X, Y, Z>(
         &mut self,
         contract_name: String,
@@ -152,9 +154,10 @@ impl CosmOrc {
         Y: Serialize,
         Z: Serialize,
     {
+        let caller_loc = Location::caller();
         let mut responses = vec![];
         for (idx, msg) in msgs.iter().enumerate() {
-            let json = self.process_msg_internal(contract_name.clone(), msg, idx)?;
+            let json = self.process_msg_internal(contract_name.clone(), msg, idx, caller_loc)?;
             responses.push(json);
         }
 
@@ -169,6 +172,7 @@ impl CosmOrc {
     /// Returns [`Err`] if `contract_name` does not have a `DeployInfo` entry in `self.contract_map`.
     /// `contract_name` needs to be configured in `Config.code_ids`
     /// or `CosmOrc::store_contracts()` needs to be called with the `contract_name.wasm` in the passed directory.
+    #[track_caller]
     pub fn process_msg<X, Y, Z>(
         &mut self,
         contract_name: String,
@@ -179,7 +183,8 @@ impl CosmOrc {
         Y: Serialize,
         Z: Serialize,
     {
-        self.process_msg_internal(contract_name, msg, 0)
+        let caller_loc = Location::caller();
+        self.process_msg_internal(contract_name, msg, 0, caller_loc)
     }
 
     // process_msg_internal is a private method with an index
@@ -189,13 +194,13 @@ impl CosmOrc {
         contract_name: String,
         msg: &WasmMsg<X, Y, Z>,
         idx: usize,
+        caller_loc: &Location,
     ) -> Result<Value>
     where
         X: Serialize,
         Y: Serialize,
         Z: Serialize,
     {
-        let backtrace = Backtrace::new();
         let deploy_info = self
             .contract_map
             .get_mut(&contract_name)
@@ -227,7 +232,7 @@ impl CosmOrc {
                         type_name(m),
                         CommandType::Instantiate,
                         &json,
-                        &backtrace,
+                        caller_loc,
                         idx,
                     )?;
                 }
@@ -263,7 +268,7 @@ impl CosmOrc {
                         type_name(m),
                         CommandType::Execute,
                         &json,
-                        &backtrace,
+                        caller_loc,
                         idx,
                     )?;
                 }
@@ -296,7 +301,7 @@ impl CosmOrc {
                         type_name(m),
                         CommandType::Query,
                         &json,
-                        &backtrace,
+                        caller_loc,
                         idx,
                     )?;
                 }
