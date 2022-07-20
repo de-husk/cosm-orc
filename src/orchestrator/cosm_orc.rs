@@ -1,3 +1,4 @@
+use std::fmt::{Debug, self};
 use anyhow::{Context, Result};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,12 @@ where
     InstantiateMsg(X),
     ExecuteMsg(Y),
     QueryMsg(Z),
+}
+
+impl Debug for CosmOrc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.contract_map)
+    }
 }
 
 impl CosmOrc {
