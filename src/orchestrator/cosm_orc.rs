@@ -17,7 +17,7 @@ use crate::util::key_str::type_name;
 pub struct CosmOrc {
     cfg: Config,
     pub contract_map: HashMap<ContractName, DeployInfo>,
-    profilers: Vec<Box<dyn Profiler>>,
+    profilers: Vec<Box<dyn Profiler + Send>>,
 }
 
 pub type ContractName = String;
@@ -63,7 +63,7 @@ impl CosmOrc {
 
     /// Used to add a profiler to be used during message execution.
     /// Call multiple times to add additional Profilers.
-    pub fn add_profiler(mut self, p: Box<dyn Profiler>) -> Self {
+    pub fn add_profiler(mut self, p: Box<dyn Profiler + Send>) -> Self {
         self.profilers.push(p);
         self
     }
