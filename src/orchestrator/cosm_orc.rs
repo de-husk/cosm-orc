@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::fmt::{self, Debug};
 use std::fs;
 use std::panic::Location;
 use std::path::Path;
@@ -37,6 +38,12 @@ where
     InstantiateMsg(X),
     ExecuteMsg(Y),
     QueryMsg(Z),
+}
+
+impl Debug for CosmOrc {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.contract_map)
+    }
 }
 
 impl CosmOrc {
