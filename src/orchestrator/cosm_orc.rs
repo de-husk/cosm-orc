@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
 use log::{debug, info};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::fs;
@@ -11,22 +10,15 @@ use std::path::Path;
 
 use crate::config::cfg::Config;
 use crate::orchestrator::command::{exec_msg, CommandType};
+use crate::orchestrator::deploy::ContractMap;
 use crate::profilers::profiler::{Profiler, Report};
 use crate::util::key_str::type_name;
 
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 pub struct CosmOrc {
+    pub contract_map: ContractMap,
     cfg: Config,
-    pub contract_map: HashMap<ContractName, DeployInfo>,
     profilers: Vec<Box<dyn Profiler + Send>>,
-}
-
-pub type ContractName = String;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeployInfo {
-    pub code_id: u64,
-    pub address: Option<String>,
 }
 
 pub enum WasmMsg<X, Y, Z>
@@ -49,21 +41,9 @@ impl Debug for CosmOrc {
 impl CosmOrc {
     /// Creates a CosmOrc object from the supplied Config
     pub fn new(cfg: Config) -> Self {
-        let mut contract_map = HashMap::new();
-
-        for (name, code_id) in &cfg.code_ids {
-            contract_map.insert(
-                name.clone(),
-                DeployInfo {
-                    code_id: *code_id,
-                    address: None,
-                },
-            );
-        }
-
         Self {
+            contract_map: ContractMap::new(&cfg.code_ids),
             cfg,
-            contract_map,
             profilers: vec![],
         }
     }
@@ -123,13 +103,8 @@ impl CosmOrc {
                     .context("wasm_path has invalid unicode chars")?
                     .to_string();
 
-                self.contract_map.insert(
-                    contract.clone(),
-                    DeployInfo {
-                        code_id,
-                        address: None,
-                    },
-                );
+                self.contract_map
+                    .register_contract(contract.clone(), code_id);
 
                 for prof in &mut self.profilers {
                     prof.instrument(
@@ -208,10 +183,7 @@ impl CosmOrc {
         Y: Serialize,
         Z: Serialize,
     {
-        let deploy_info = self
-            .contract_map
-            .get_mut(&contract_name)
-            .context("contract not stored")?;
+        let code_id = self.contract_map.code_id(&contract_name)?;
 
         let json = match msg {
             WasmMsg::InstantiateMsg(m) => {
@@ -222,7 +194,7 @@ impl CosmOrc {
                     CommandType::Instantiate,
                     &[
                         vec![
-                            deploy_info.code_id.to_string(),
+                            code_id.to_string(),
                             input_json.to_string(),
                             "--label".to_string(),
                             "gas profiler".to_string(),
@@ -249,15 +221,13 @@ impl CosmOrc {
                     .context("not string")?
                     .to_string();
 
-                deploy_info.address = Some(addr);
+                self.contract_map.add_address(&contract_name, addr)?;
+
                 json
             }
             WasmMsg::ExecuteMsg(m) => {
                 let input_json = serde_json::to_value(&m)?;
-                let addr = deploy_info
-                    .address
-                    .clone()
-                    .context("contract not instantiated")?;
+                let addr = self.contract_map.address(&contract_name)?;
 
                 let json = exec_msg(
                     &self.cfg.chain_cfg.binary,
@@ -284,10 +254,7 @@ impl CosmOrc {
             }
             WasmMsg::QueryMsg(m) => {
                 let input_json = serde_json::to_value(&m)?;
-                let addr = deploy_info
-                    .address
-                    .clone()
-                    .context("contract not instantiated")?;
+                let addr = self.contract_map.address(&contract_name)?;
 
                 let json = exec_msg(
                     &self.cfg.chain_cfg.binary,
