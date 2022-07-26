@@ -126,20 +126,23 @@ impl CosmOrc {
     /// Executes multiple smart contract operations against the configured chain
     /// returning the raw cosmos json responses.
     #[track_caller]
-    pub fn process_msgs<X, Y, Z>(
+    pub fn process_msgs<X, Y, Z, S>(
         &mut self,
-        contract_name: String,
+        contract_name: S,
         msgs: &[WasmMsg<X, Y, Z>],
     ) -> Result<Vec<Value>>
     where
         X: Serialize,
         Y: Serialize,
         Z: Serialize,
+        S: Into<String>,
     {
         let caller_loc = Location::caller();
+        let contract = contract_name.into();
+
         let mut responses = vec![];
         for (idx, msg) in msgs.iter().enumerate() {
-            let json = self.process_msg_internal(contract_name.clone(), msg, idx, caller_loc)?;
+            let json = self.process_msg_internal(contract.clone(), msg, idx, caller_loc)?;
             responses.push(json);
         }
 
@@ -155,18 +158,19 @@ impl CosmOrc {
     /// `contract_name` needs to be configured in `Config.code_ids`
     /// or `CosmOrc::store_contracts()` needs to be called with the `contract_name.wasm` in the passed directory.
     #[track_caller]
-    pub fn process_msg<X, Y, Z>(
+    pub fn process_msg<X, Y, Z, S>(
         &mut self,
-        contract_name: String,
+        contract_name: S,
         msg: &WasmMsg<X, Y, Z>,
     ) -> Result<Value>
     where
         X: Serialize,
         Y: Serialize,
         Z: Serialize,
+        S: Into<String>,
     {
         let caller_loc = Location::caller();
-        self.process_msg_internal(contract_name, msg, 0, caller_loc)
+        self.process_msg_internal(contract_name.into(), msg, 0, caller_loc)
     }
 
     // process_msg_internal is a private method with an index
