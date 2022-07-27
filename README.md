@@ -41,7 +41,7 @@ Currently, Cosm-orc works by accessing a local cosmos chain binary, ex: `junod`.
             WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
         ];
 
-        cosm_orc.process_msgs("cw20_base", &msgs)?;
+        cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs)?;
 
         Ok(())
   }
