@@ -10,9 +10,9 @@ pub struct ContractMap {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DeployInfo {
-    code_id: u64,
-    address: Option<String>,
+pub struct DeployInfo {
+    pub code_id: u64,
+    pub address: Option<String>,
 }
 
 impl ContractMap {
@@ -32,9 +32,9 @@ impl ContractMap {
     }
 
     /// Registers a new code id and contract name with the contract map
-    pub fn register_contract(&mut self, name: String, code_id: u64) {
+    pub fn register_contract<S: Into<String>>(&mut self, name: S, code_id: u64) {
         self.map.insert(
-            name,
+            name.into(),
             DeployInfo {
                 code_id,
                 address: None,
@@ -59,18 +59,16 @@ impl ContractMap {
     }
 
     /// Registers a contract address with an already stored contract
-    pub fn add_address(&mut self, name: &str, address: String) -> Result<()> {
+    pub fn add_address<S: Into<String>>(&mut self, name: &str, address: S) -> Result<()> {
         self.map
             .get_mut(name)
             .context("contract not stored")?
-            .address = Some(address);
+            .address = Some(address.into());
         Ok(())
     }
 
-    /// Removes all configured contract addresses, leaving the stored contract ids intact
-    pub fn clear_addresses(&mut self) {
-        for (_n, d) in self.map.iter_mut() {
-            d.address = None
-        }
+    /// Returns current deploy info
+    pub fn deploy_info(&self) -> &HashMap<String, DeployInfo> {
+        &self.map
     }
 }
