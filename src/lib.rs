@@ -38,7 +38,7 @@
 //!         WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
 //!     ];
 //!
-//!     cosm_orc.process_msgs("cw20_base".to_string(), &msgs)?;
+//!     cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs)?;
 //! #    Ok(())
 //! # }
 //! ```
@@ -48,5 +48,3 @@ pub mod orchestrator;
 pub mod profilers;
 
 pub mod config;
-
-pub(crate) mod util;

@@ -51,10 +51,7 @@ impl Profiler for GasProfiler {
 
         let caller_file_name = caller_loc.file().to_string();
         let caller_line_number = caller_loc.line();
-        let op_key = format!(
-            "{}__{}:{}[{}]",
-            op_name, caller_file_name, caller_line_number, msg_idx
-        );
+        let op_key = format!("{:?}__{}[{}]", op_type, op_name, msg_idx);
 
         let m = self.report.entry(contract).or_default();
         m.insert(
