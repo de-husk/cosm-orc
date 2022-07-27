@@ -12,7 +12,6 @@ use crate::config::cfg::Config;
 use crate::orchestrator::command::{exec_msg, CommandType};
 use crate::orchestrator::deploy::ContractMap;
 use crate::profilers::profiler::{Profiler, Report};
-use crate::util::key_str::type_name;
 
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 pub struct CosmOrc {
@@ -129,6 +128,7 @@ impl CosmOrc {
     pub fn process_msgs<X, Y, Z, S>(
         &mut self,
         contract_name: S,
+        op_name: S,
         msgs: &[WasmMsg<X, Y, Z>],
     ) -> Result<Vec<Value>>
     where
@@ -138,11 +138,18 @@ impl CosmOrc {
         S: Into<String>,
     {
         let caller_loc = Location::caller();
-        let contract = contract_name.into();
+        let contract_name = contract_name.into();
+        let op_name = op_name.into();
 
         let mut responses = vec![];
         for (idx, msg) in msgs.iter().enumerate() {
-            let json = self.process_msg_internal(contract.clone(), msg, idx, caller_loc)?;
+            let json = self.process_msg_internal(
+                contract_name.clone(),
+                op_name.clone(),
+                msg,
+                idx,
+                caller_loc,
+            )?;
             responses.push(json);
         }
 
@@ -151,6 +158,9 @@ impl CosmOrc {
 
     /// Executes a single smart contract operation against the configured chain
     /// returning the raw cosmos json response.
+    /// # Arguments
+    /// * `contract_name` - Smart contract name for the corresponding `msg`.
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
     ///
     /// # Errors
     ///
@@ -161,6 +171,7 @@ impl CosmOrc {
     pub fn process_msg<X, Y, Z, S>(
         &mut self,
         contract_name: S,
+        op_name: S,
         msg: &WasmMsg<X, Y, Z>,
     ) -> Result<Value>
     where
@@ -170,14 +181,15 @@ impl CosmOrc {
         S: Into<String>,
     {
         let caller_loc = Location::caller();
-        self.process_msg_internal(contract_name.into(), msg, 0, caller_loc)
+        self.process_msg_internal(contract_name.into(), op_name.into(), msg, 0, caller_loc)
     }
 
     // process_msg_internal is a private method with an index
-    // of the passed in message for profiler bookeeping
+    // of the passed in message for profiler bookkeeping
     fn process_msg_internal<X, Y, Z>(
         &mut self,
         contract_name: String,
+        op_name: String,
         msg: &WasmMsg<X, Y, Z>,
         idx: usize,
         caller_loc: &Location,
@@ -212,7 +224,7 @@ impl CosmOrc {
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
-                        type_name(m),
+                        op_name.clone(),
                         CommandType::Instantiate,
                         &json,
                         caller_loc,
@@ -246,7 +258,7 @@ impl CosmOrc {
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
-                        type_name(m),
+                        op_name.clone(),
                         CommandType::Execute,
                         &json,
                         caller_loc,
@@ -276,7 +288,7 @@ impl CosmOrc {
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
-                        type_name(m),
+                        op_name.clone(),
                         CommandType::Query,
                         &json,
                         caller_loc,
