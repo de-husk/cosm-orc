@@ -3,13 +3,13 @@ use config::Config as _Config;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub(crate) tx_flags: Vec<String>,
     cfg: Cfg,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Cfg {
     pub chain_cfg: ChainCfg,
     // used to configure already stored code_id dependencies
@@ -20,7 +20,7 @@ pub struct Cfg {
     pub key_name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChainCfg {
     pub binary: String,
     pub denom: String,
@@ -70,5 +70,11 @@ impl std::ops::Deref for Config {
     type Target = Cfg;
     fn deref(&self) -> &Self::Target {
         &self.cfg
+    }
+}
+
+impl std::ops::DerefMut for Config {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.cfg
     }
 }
