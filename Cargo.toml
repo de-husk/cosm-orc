@@ -21,5 +21,11 @@ serde_json = "1.0"
 log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
 
+# NOTE: I need to use an older version of cosmrs until I can fix the transitive dependency collision error
+cosmrs = { version = "0.7.1", features = ["rpc", "cosmwasm"] }
+cosmos-sdk-proto = "0.12.0"
+tokio = { version = "1.20.1", features = ["full"] }
+prost = "0.10.4"
+
 [dev-dependencies]
 cw20-base = "0.13"

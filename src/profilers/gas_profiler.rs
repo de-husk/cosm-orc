@@ -1,11 +1,12 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
+use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::panic::Location;
 
-use crate::orchestrator::command::CommandType;
 use crate::profilers::profiler::{Profiler, Report};
+
+use super::profiler::CommandType;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GasProfiler {
@@ -40,7 +41,7 @@ impl Profiler for GasProfiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        output_json: &Value,
+        response: &TxResult,
         caller_loc: &Location,
         msg_idx: usize,
     ) -> Result<()> {
@@ -57,14 +58,8 @@ impl Profiler for GasProfiler {
         m.insert(
             op_key,
             GasReport {
-                gas_used: output_json["gas_used"]
-                    .as_str()
-                    .context("not string")?
-                    .parse()?,
-                gas_wanted: output_json["gas_wanted"]
-                    .as_str()
-                    .context("not string")?
-                    .parse()?,
+                gas_used: response.gas_used.into(),
+                gas_wanted: response.gas_wanted.into(),
                 file_name: caller_file_name,
                 line_number: caller_line_number,
             },
