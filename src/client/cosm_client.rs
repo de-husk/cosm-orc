@@ -20,6 +20,7 @@ use cosmrs::{
 };
 use cosmrs::{AccountId, Any, Coin};
 use prost::Message;
+use std::future::Future;
 use std::str::FromStr;
 
 pub struct CosmClient {
@@ -246,6 +247,14 @@ impl CosmClient {
         }
         None
     }
+}
+
+pub fn tokio_block<F: Future>(f: F) -> F::Output {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(f)
 }
 
 #[derive(Debug)]

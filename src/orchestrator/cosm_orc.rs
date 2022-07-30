@@ -8,7 +8,7 @@ use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
-use crate::client::cosm_client::CosmClient;
+use crate::client::cosm_client::{tokio_block, CosmClient};
 use crate::config::cfg::Config;
 use crate::config::key::SigningKey;
 use crate::orchestrator::deploy::ContractMap;
@@ -79,11 +79,8 @@ impl CosmOrc {
 
                 let wasm = fs::read(&wasm_path)?;
 
-                let res = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async { self.client.store(wasm, &key.clone().into()).await })?;
+                let res =
+                    tokio_block(async { self.client.store(wasm, &key.clone().into()).await })?;
 
                 let contract = wasm_path
                     .file_stem()
@@ -206,15 +203,11 @@ impl CosmOrc {
             WasmMsg::InstantiateMsg(m) => {
                 let payload = serde_json::to_vec(&m)?;
 
-                let res = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async {
-                        self.client
-                            .instantiate(code_id, payload, &key.clone().into())
-                            .await
-                    })?;
+                let res = tokio_block(async {
+                    self.client
+                        .instantiate(code_id, payload, &key.clone().into())
+                        .await
+                })?;
 
                 println!("{:?}", res);
 
@@ -237,15 +230,11 @@ impl CosmOrc {
                 let payload = serde_json::to_vec(&m)?;
                 let addr = self.contract_map.address(&contract_name)?;
 
-                let res = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async {
-                        self.client
-                            .execute(addr, payload, &key.clone().into())
-                            .await
-                    })?;
+                let res = tokio_block(async {
+                    self.client
+                        .execute(addr, payload, &key.clone().into())
+                        .await
+                })?;
 
                 for prof in &mut self.profilers {
                     prof.instrument(
@@ -264,11 +253,7 @@ impl CosmOrc {
                 let payload = serde_json::to_vec(&m)?;
                 let addr = self.contract_map.address(&contract_name)?;
 
-                let res = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap()
-                    .block_on(async { self.client.query(addr, payload).await })?;
+                let res = tokio_block(async { self.client.query(addr, payload).await })?;
 
                 for prof in &mut self.profilers {
                     prof.instrument(
