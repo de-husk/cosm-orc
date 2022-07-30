@@ -1,9 +1,15 @@
 use anyhow::Result;
+use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::panic::Location;
 
-use crate::orchestrator::command::CommandType;
+#[derive(PartialEq, Eq, Debug)]
+pub enum CommandType {
+    Store,
+    Instantiate,
+    Query,
+    Execute,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Report {
@@ -17,7 +23,7 @@ pub trait Profiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        output_json: &Value,
+        response: &TxResult,
         caller_loc: &Location,
         msg_idx: usize,
     ) -> Result<()>;

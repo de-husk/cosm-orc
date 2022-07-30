@@ -1,22 +1,26 @@
 use anyhow::{Context, Result};
+use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use log::{debug, info};
 use serde::Serialize;
-use serde_json::Value;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
+use crate::client::cosm_client::CosmClient;
 use crate::config::cfg::Config;
-use crate::orchestrator::command::{exec_msg, CommandType};
+use crate::config::key::SigningKey;
 use crate::orchestrator::deploy::ContractMap;
-use crate::profilers::profiler::{Profiler, Report};
+use crate::profilers::profiler::{CommandType, Profiler, Report};
+
+// TODO: Now that the public facing API has solified
+//       make easy to use, concrete error types using https://crates.io/crates/thiserror instead of just using opaque anyhow errors
 
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 pub struct CosmOrc {
     pub contract_map: ContractMap,
-    cfg: Config,
+    client: CosmClient,
     profilers: Vec<Box<dyn Profiler + Send>>,
 }
 
@@ -39,12 +43,12 @@ impl Debug for CosmOrc {
 
 impl CosmOrc {
     /// Creates a CosmOrc object from the supplied Config
-    pub fn new(cfg: Config) -> Self {
-        Self {
+    pub fn new(cfg: Config) -> Result<Self> {
+        Ok(Self {
             contract_map: ContractMap::new(&cfg.code_ids),
-            cfg,
+            client: CosmClient::new(cfg.chain_cfg)?,
             profilers: vec![],
-        }
+        })
     }
 
     /// Used to add a profiler to be used during message execution.
@@ -54,11 +58,7 @@ impl CosmOrc {
         self
     }
 
-    // TODO: I probably shouldnt be returning `serde::Value`s from this library.
-    // I should make it more general purpose and just return a byte slice of the json
-    // for general consumption through any library, so they dont have to use serde.
-
-    // TODO: Implement a `store_contract()` that takes in a single wasm file as well
+    // TODO: allow for the ability to optimize the wasm here too
 
     /// Uploads the contracts in `wasm_dir` to the configured chain
     /// saving the resulting contract ids in `contract_map` and
@@ -67,7 +67,7 @@ impl CosmOrc {
     /// You don't need to call this function if all of the smart contract ids
     /// are already configured via `cfg.code_ids`.
     #[track_caller]
-    pub fn store_contracts(&mut self, wasm_dir: &str) -> Result<Vec<Value>> {
+    pub fn store_contracts(&mut self, wasm_dir: &str, key: &SigningKey) -> Result<Vec<TxResult>> {
         let caller_loc = Location::caller();
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
@@ -77,23 +77,13 @@ impl CosmOrc {
             if wasm_path.extension() == Some(OsStr::new("wasm")) {
                 info!("Storing {:?}", wasm_path);
 
-                let json = exec_msg(
-                    &self.cfg.chain_cfg.binary,
-                    CommandType::Store,
-                    &[
-                        vec![wasm_path
-                            .to_str()
-                            .context("invalid unicode chars")?
-                            .to_string()],
-                        self.cfg.tx_flags.clone(),
-                    ]
-                    .concat(),
-                )?;
+                let wasm = fs::read(&wasm_path)?;
 
-                let code_id: u64 = json["logs"][0]["events"][1]["attributes"][0]["value"]
-                    .as_str()
-                    .context("value is not a string")?
-                    .parse()?;
+                let res = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { self.client.store(wasm, &key.clone().into()).await })?;
 
                 let contract = wasm_path
                     .file_stem()
@@ -103,20 +93,20 @@ impl CosmOrc {
                     .to_string();
 
                 self.contract_map
-                    .register_contract(contract.clone(), code_id);
+                    .register_contract(contract.clone(), res.code_id);
 
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract.clone(),
                         "Store".to_string(),
                         CommandType::Store,
-                        &json,
+                        &res.data,
                         caller_loc,
                         0,
                     )?;
                 }
 
-                responses.push(json);
+                responses.push(res.data);
             }
         }
         Ok(responses)
@@ -130,7 +120,8 @@ impl CosmOrc {
         contract_name: S,
         op_name: S,
         msgs: &[WasmMsg<X, Y, Z>],
-    ) -> Result<Vec<Value>>
+        key: &SigningKey,
+    ) -> Result<Vec<TxResult>>
     where
         X: Serialize,
         Y: Serialize,
@@ -147,6 +138,7 @@ impl CosmOrc {
                 contract_name.clone(),
                 op_name.clone(),
                 msg,
+                key,
                 idx,
                 caller_loc,
             )?;
@@ -159,7 +151,7 @@ impl CosmOrc {
     /// Executes a single smart contract operation against the configured chain
     /// returning the raw cosmos json response.
     /// # Arguments
-    /// * `contract_name` - Smart contract name for the corresponding `msg`.
+    /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
     /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
     ///
     /// # Errors
@@ -173,7 +165,8 @@ impl CosmOrc {
         contract_name: S,
         op_name: S,
         msg: &WasmMsg<X, Y, Z>,
-    ) -> Result<Value>
+        key: &SigningKey,
+    ) -> Result<TxResult>
     where
         X: Serialize,
         Y: Serialize,
@@ -181,7 +174,14 @@ impl CosmOrc {
         S: Into<String>,
     {
         let caller_loc = Location::caller();
-        self.process_msg_internal(contract_name.into(), op_name.into(), msg, 0, caller_loc)
+        self.process_msg_internal(
+            contract_name.into(),
+            op_name.into(),
+            msg,
+            key,
+            0,
+            caller_loc,
+        )
     }
 
     // process_msg_internal is a private method with an index
@@ -191,9 +191,10 @@ impl CosmOrc {
         contract_name: String,
         op_name: String,
         msg: &WasmMsg<X, Y, Z>,
+        key: &SigningKey,
         idx: usize,
         caller_loc: &Location,
-    ) -> Result<Value>
+    ) -> Result<TxResult>
     where
         X: Serialize,
         Y: Serialize,
@@ -201,107 +202,91 @@ impl CosmOrc {
     {
         let code_id = self.contract_map.code_id(&contract_name)?;
 
-        let json = match msg {
+        let res = match msg {
             WasmMsg::InstantiateMsg(m) => {
-                let input_json = serde_json::to_value(&m)?;
+                let payload = serde_json::to_vec(&m)?;
 
-                let json = exec_msg(
-                    &self.cfg.chain_cfg.binary,
-                    CommandType::Instantiate,
-                    &[
-                        vec![
-                            code_id.to_string(),
-                            input_json.to_string(),
-                            "--label".to_string(),
-                            "gas profiler".to_string(),
-                            "--no-admin".to_string(), // TODO: Allow for configurable admin addr to be passed
-                        ],
-                        self.cfg.tx_flags.clone(),
-                    ]
-                    .concat(),
-                )?;
+                let res = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        self.client
+                            .instantiate(code_id, payload, &key.clone().into())
+                            .await
+                    })?;
+
+                println!("{:?}", res);
 
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
                         op_name.clone(),
                         CommandType::Instantiate,
-                        &json,
+                        &res.data,
                         caller_loc,
                         idx,
                     )?;
                 }
 
-                let addr = json["logs"][0]["events"][0]["attributes"][0]["value"]
-                    .as_str()
-                    .context("not string")?
-                    .to_string();
+                self.contract_map.add_address(&contract_name, res.address)?;
 
-                self.contract_map.add_address(&contract_name, addr)?;
-
-                json
+                res.data
             }
             WasmMsg::ExecuteMsg(m) => {
-                let input_json = serde_json::to_value(&m)?;
+                let payload = serde_json::to_vec(&m)?;
                 let addr = self.contract_map.address(&contract_name)?;
 
-                let json = exec_msg(
-                    &self.cfg.chain_cfg.binary,
-                    CommandType::Execute,
-                    &[
-                        vec![addr, input_json.to_string()],
-                        self.cfg.tx_flags.clone(),
-                    ]
-                    .concat(),
-                )?;
+                let res = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        self.client
+                            .execute(addr, payload, &key.clone().into())
+                            .await
+                    })?;
 
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
                         op_name.clone(),
                         CommandType::Execute,
-                        &json,
+                        &res.data,
                         caller_loc,
                         idx,
                     )?;
                 }
 
-                json
+                res.data
             }
             WasmMsg::QueryMsg(m) => {
-                let input_json = serde_json::to_value(&m)?;
+                let payload = serde_json::to_vec(&m)?;
                 let addr = self.contract_map.address(&contract_name)?;
 
-                let json = exec_msg(
-                    &self.cfg.chain_cfg.binary,
-                    CommandType::Query,
-                    &[
-                        addr,
-                        input_json.to_string(),
-                        "--node".to_string(),
-                        self.cfg.chain_cfg.rpc_endpoint.clone(),
-                        "--output".to_string(),
-                        "json".to_string(),
-                    ],
-                )?;
+                let res = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async { self.client.query(addr, payload).await })?;
 
                 for prof in &mut self.profilers {
                     prof.instrument(
                         contract_name.clone(),
                         op_name.clone(),
                         CommandType::Query,
-                        &json,
+                        &res.data,
                         caller_loc,
                         idx,
                     )?;
                 }
 
-                json
+                res.data
             }
         };
 
-        debug!("{}", json);
-        Ok(json)
+        debug!("{:?}", res);
+        Ok(res)
     }
 
     /// Get instrumentation reports for each configured profiler.
