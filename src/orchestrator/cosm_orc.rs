@@ -209,19 +209,6 @@ impl CosmOrc {
                         .await
                 })?;
 
-                println!("{:?}", res);
-
-                for prof in &mut self.profilers {
-                    prof.instrument(
-                        contract_name.clone(),
-                        op_name.clone(),
-                        CommandType::Instantiate,
-                        &res.data,
-                        caller_loc,
-                        idx,
-                    )?;
-                }
-
                 self.contract_map.add_address(&contract_name, res.address)?;
 
                 res.data
@@ -236,17 +223,6 @@ impl CosmOrc {
                         .await
                 })?;
 
-                for prof in &mut self.profilers {
-                    prof.instrument(
-                        contract_name.clone(),
-                        op_name.clone(),
-                        CommandType::Execute,
-                        &res.data,
-                        caller_loc,
-                        idx,
-                    )?;
-                }
-
                 res.data
             }
             WasmMsg::QueryMsg(m) => {
@@ -255,20 +231,20 @@ impl CosmOrc {
 
                 let res = tokio_block(async { self.client.query(addr, payload).await })?;
 
-                for prof in &mut self.profilers {
-                    prof.instrument(
-                        contract_name.clone(),
-                        op_name.clone(),
-                        CommandType::Query,
-                        &res.data,
-                        caller_loc,
-                        idx,
-                    )?;
-                }
-
                 res.data
             }
         };
+
+        for prof in &mut self.profilers {
+            prof.instrument(
+                contract_name.clone(),
+                op_name.clone(),
+                msg.into(),
+                &res,
+                caller_loc,
+                idx,
+            )?;
+        }
 
         debug!("{:?}", res);
         Ok(res)
