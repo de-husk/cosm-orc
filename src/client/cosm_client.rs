@@ -3,6 +3,7 @@ use anyhow::{bail, Context, Result};
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
+use cosmos_sdk_proto::cosmos::tx::v1beta1::{SimulateRequest, SimulateResponse};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     QuerySmartContractStateRequest, QuerySmartContractStateResponse,
 };
@@ -172,10 +173,11 @@ impl CosmClient {
 
     async fn send_tx(&self, msg: Any, key: &SigningKey, account_id: AccountId) -> Result<Response> {
         let timeout_height = 0u16; // TODO
-        let fee = self.calc_gas_fee();
         let account = self.account(account_id).await?;
 
         let tx_body = tx::Body::new(vec![msg], "MEMO", timeout_height);
+
+        let fee = self.simulate_gas_fee(&tx_body, &account, key).await?;
 
         let auth_info =
             SignerInfo::single_direct(Some(key.public_key()), account.sequence).auth_info(fee);
@@ -225,18 +227,62 @@ impl CosmClient {
         Ok(BaseAccount::decode(res.value.as_slice())?)
     }
 
-    fn calc_gas_fee(&self) -> Fee {
-        // TODO: Dont hardcode lol
-        let gas = 59266013;
-        Fee {
-            amount: vec![Coin {
-                amount: 1u8.into(),
+    #[allow(deprecated)]
+    async fn simulate_gas_fee(
+        &self,
+        tx: &tx::Body,
+        account: &BaseAccount,
+        key: &SigningKey,
+    ) -> Result<Fee> {
+        // TODO: support passing in the exact fee too (should be on a per process_msg() call)
+        let signer_info = SignerInfo::single_direct(Some(key.public_key()), account.sequence);
+        let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
+            Coin {
                 denom: self.cfg.denom.parse().unwrap(),
-            }],
-            gas_limit: gas.into(),
-            payer: None,
-            granter: None,
-        }
+                amount: 0u64.into(),
+            },
+            0u64,
+        ));
+
+        let sign_doc = SignDoc::new(
+            tx,
+            &auth_info,
+            &self.cfg.chain_id.parse().unwrap(),
+            account.account_number,
+        )
+        .unwrap();
+
+        let tx_raw = sign_doc.sign(key).unwrap();
+
+        let req = SimulateRequest {
+            tx: None,
+            tx_bytes: tx_raw.to_bytes().unwrap(),
+        };
+
+        let mut buf = Vec::with_capacity(req.encoded_len());
+        req.encode(&mut buf)?;
+
+        let res = self
+            .client
+            .abci_query(
+                Some("/cosmos.tx.v1beta1.Service/Simulate".parse()?),
+                buf,
+                None,
+                false,
+            )
+            .await?;
+
+        let gas_info = SimulateResponse::decode(res.value.as_slice())?
+            .gas_info
+            .context("error simulating tx")?;
+
+        let gas_limit = (gas_info.gas_used as f64 * self.cfg.gas_adjustment).ceil();
+        let amount = Coin {
+            denom: self.cfg.denom.parse().unwrap(),
+            amount: ((gas_limit * self.cfg.gas_prices).ceil() as u64).into(),
+        };
+
+        Ok(Fee::from_amount_and_gas(amount, gas_limit as u64))
     }
 
     fn find_event(&self, res: &Response, key_name: &str) -> Option<Event> {
