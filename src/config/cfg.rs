@@ -18,6 +18,8 @@ pub struct ChainCfg {
     pub prefix: String,
     pub chain_id: String,
     pub rpc_endpoint: String,
+    pub gas_prices: f64,
+    pub gas_adjustment: f64,
 }
 
 impl Config {
