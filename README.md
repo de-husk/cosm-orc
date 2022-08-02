@@ -17,34 +17,37 @@ This project is not yet intended to be used for mainnet.
 
 ## Quick Start
  ```rust
-    use anyhow::Result;
-    use cosm_orc::{
-        config::cfg::Config,
-        orchestrator::cosm_orc::{CosmOrc, WasmMsg},
-    };
-    use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use std::error::Error;
+use cosm_orc::{
+config::cfg::Config,
+orchestrator::cosm_orc::{CosmOrc, WasmMsg},
+};
+use cosm_orc::config::key::SigningKey;
+use cosm_orc::config::key::Key;
+use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+fn main() -> Result<(), Box<dyn Error>> {
+    // juno_local.yaml has the cw20_base code_id already stored
+    // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
+    let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+    let key = SigningKey {
+            name: "validator".to_string(),
+            key: Key::Mnemonic("word1 word2 ...".to_string()),
+        };
 
-    fn main() -> Result<()> {
-        // juno_cfg.yaml has the cw20_base code_id already stored
-        // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-        let mut cosm_orc = CosmOrc::new(Config::from_yaml("./examples/juno_local.yaml")?);
-
-        let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-            WasmMsg::InstantiateMsg(InstantiateMsg {
-                name: "Meme Token".to_string(),
-                symbol: "MEME".to_string(),
-                decimals: 6,
-                initial_balances: vec![],
-                mint: None,
-                marketing: None,
-            }),
-            WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-        ];
-
-        cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs)?;
-
-        Ok(())
-  }
+    let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
+        WasmMsg::InstantiateMsg(InstantiateMsg {
+            name: "Meme Token".to_string(),
+            symbol: "MEME".to_string(),
+            decimals: 6,
+            initial_balances: vec![],
+            mint: None,
+            marketing: None,
+        }),
+        WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
+    ];
+        cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+    Ok(())
+}
 ```
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
