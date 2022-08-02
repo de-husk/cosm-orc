@@ -1,5 +1,9 @@
 use cosmrs::bip32;
 
+use crate::client::error::ClientError;
+
+// TODO: It would be cool if cosm-orc could create test accounts for you
+
 #[derive(Debug, Clone)]
 pub struct SigningKey {
     /// human readable key name
@@ -18,17 +22,23 @@ pub enum Key {
     // TODO: Support other types of credentials
 }
 
-impl From<SigningKey> for cosmrs::crypto::secp256k1::SigningKey {
-    // TODO: Stop unwrapping here and make this a TryFrom instead of a From
-    fn from(signer: SigningKey) -> cosmrs::crypto::secp256k1::SigningKey {
+impl TryFrom<SigningKey> for cosmrs::crypto::secp256k1::SigningKey {
+    type Error = ClientError;
+    fn try_from(signer: SigningKey) -> Result<cosmrs::crypto::secp256k1::SigningKey, ClientError> {
         match signer.key {
             Key::Mnemonic(key) => {
                 let seed = bip32::Mnemonic::new(key, bip32::Language::English)
-                    .unwrap()
+                    .map_err(|_| ClientError::Mnemonic)?
                     .to_seed("");
-                bip32::XPrv::derive_from_path(seed, &signer.derivation_path.parse().unwrap())
-                    .unwrap()
-                    .into()
+                Ok(bip32::XPrv::derive_from_path(
+                    seed,
+                    &signer
+                        .derivation_path
+                        .parse()
+                        .map_err(|_| ClientError::DerviationPath)?,
+                )
+                .map_err(|_| ClientError::DerviationPath)?
+                .into())
             }
         }
     }
