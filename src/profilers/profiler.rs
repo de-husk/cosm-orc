@@ -1,7 +1,6 @@
-use anyhow::Result;
 use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
-use std::panic::Location;
+use std::{error::Error, panic::Location};
 
 use crate::orchestrator::cosm_orc::WasmMsg;
 
@@ -43,6 +42,6 @@ pub trait Profiler {
         response: &TxResult,
         caller_loc: &Location,
         msg_idx: usize,
-    ) -> Result<()>;
-    fn report(&self) -> Result<Report>;
+    ) -> Result<(), Box<dyn Error>>;
+    fn report(&self) -> Result<Report, Box<dyn Error>>;
 }

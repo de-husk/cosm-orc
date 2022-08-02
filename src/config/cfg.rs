@@ -1,7 +1,8 @@
-use anyhow::Result;
 use config::Config as _Config;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use super::error::ConfigError;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -23,7 +24,7 @@ pub struct ChainCfg {
 }
 
 impl Config {
-    pub fn from_yaml(file: &str) -> Result<Config> {
+    pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
         let settings = _Config::builder()
             .add_source(config::File::with_name(file))
             .build()?;

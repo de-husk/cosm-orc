@@ -1,6 +1,7 @@
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use super::error::ContractMapError;
 
 pub type ContractName = String;
 
@@ -43,26 +44,33 @@ impl ContractMap {
     }
 
     /// Returns the stored code id for a given contract name
-    pub fn code_id(&self, name: &str) -> Result<u64> {
-        let info = self.map.get(name).context("contract not stored")?;
+    pub fn code_id(&self, name: &str) -> Result<u64, ContractMapError> {
+        let info = self
+            .map
+            .get(name)
+            .ok_or(ContractMapError::NotStored { name: name.into() })?;
         Ok(info.code_id)
     }
 
     /// Returns the stored contract address for a given contract name
-    pub fn address(&self, name: &str) -> Result<String> {
+    pub fn address(&self, name: &str) -> Result<String, ContractMapError> {
         self.map
             .get(name)
-            .context("contract not stored")?
+            .ok_or(ContractMapError::NotStored { name: name.into() })?
             .address
             .clone()
-            .context("contract not deployed")
+            .ok_or(ContractMapError::NotDeployed { name: name.into() })
     }
 
     /// Registers a contract address with an already stored contract
-    pub fn add_address<S: Into<String>>(&mut self, name: &str, address: S) -> Result<()> {
+    pub fn add_address<S: Into<String>>(
+        &mut self,
+        name: &str,
+        address: S,
+    ) -> Result<(), ContractMapError> {
         self.map
             .get_mut(name)
-            .context("contract not stored")?
+            .ok_or(ContractMapError::NotStored { name: name.into() })?
             .address = Some(address.into());
         Ok(())
     }

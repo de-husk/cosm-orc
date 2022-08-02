@@ -1,8 +1,7 @@
-use anyhow::Result;
 use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::panic::Location;
+use std::{collections::HashMap, error::Error};
 
 use crate::profilers::profiler::{Profiler, Report};
 
@@ -44,7 +43,7 @@ impl Profiler for GasProfiler {
         response: &TxResult,
         caller_loc: &Location,
         msg_idx: usize,
-    ) -> Result<()> {
+    ) -> Result<(), Box<dyn Error>> {
         if op_type == CommandType::Query {
             // Wasm Query msgs don't cost gas
             return Ok(());
@@ -68,7 +67,7 @@ impl Profiler for GasProfiler {
         Ok(())
     }
 
-    fn report(&self) -> Result<Report> {
+    fn report(&self) -> Result<Report, Box<dyn Error>> {
         let json = serde_json::to_vec(&self.report)?;
         Ok(Report {
             name: "gas-profiler".to_string(),

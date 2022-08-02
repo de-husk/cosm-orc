@@ -1,5 +1,5 @@
+use super::error::ClientError;
 use crate::config::cfg::ChainCfg;
-use anyhow::{bail, Context, Result};
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
@@ -19,10 +19,11 @@ use cosmrs::{
     rpc::HttpClient,
     tx::{self},
 };
-use cosmrs::{AccountId, Any, Coin};
+use cosmrs::{AccountId, Any, Coin, Denom};
 use prost::Message;
 use std::future::Future;
 use std::str::FromStr;
+use tendermint_rpc::endpoint::abci_query::AbciQuery;
 
 pub struct CosmClient {
     client: HttpClient,
@@ -30,7 +31,7 @@ pub struct CosmClient {
 }
 
 impl CosmClient {
-    pub fn new(cfg: ChainCfg) -> Result<Self> {
+    pub fn new(cfg: ChainCfg) -> Result<Self, ClientError> {
         Ok(Self {
             client: HttpClient::new(cfg.rpc_endpoint.as_str())?,
             cfg,
@@ -41,9 +42,12 @@ impl CosmClient {
         &self,
         payload: Vec<u8>,
         signing_key: &SigningKey,
-    ) -> Result<StoreCodeResponse> {
+    ) -> Result<StoreCodeResponse, ClientError> {
         let signing_public_key = signing_key.public_key();
-        let sender_account_id = signing_public_key.account_id(&self.cfg.prefix).unwrap();
+
+        let sender_account_id = signing_public_key
+            .account_id(&self.cfg.prefix)
+            .map_err(ClientError::crypto)?;
 
         let msg = MsgStoreCode {
             sender: sender_account_id.clone(),
@@ -51,13 +55,11 @@ impl CosmClient {
             instantiate_permission: None,
         }
         .to_any()
-        .unwrap();
+        .map_err(ClientError::proto_encoding)?;
 
         let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
 
-        let res = self
-            .find_event(&tx_res, "store_code")
-            .context("error storing code")?;
+        let res = self.find_event(&tx_res, "store_code").unwrap();
 
         let code_id = res
             .attributes
@@ -66,7 +68,8 @@ impl CosmClient {
             .unwrap()
             .value
             .as_ref()
-            .parse::<u64>()?;
+            .parse::<u64>()
+            .unwrap();
 
         Ok(StoreCodeResponse {
             code_id,
@@ -79,9 +82,11 @@ impl CosmClient {
         code_id: u64,
         payload: Vec<u8>,
         signing_key: &SigningKey,
-    ) -> Result<InstantiateResponse> {
+    ) -> Result<InstantiateResponse, ClientError> {
         let signing_public_key = signing_key.public_key();
-        let sender_account_id = signing_public_key.account_id(&self.cfg.prefix).unwrap();
+        let sender_account_id = signing_public_key
+            .account_id(&self.cfg.prefix)
+            .map_err(ClientError::crypto)?;
 
         let msg = MsgInstantiateContract {
             sender: sender_account_id.clone(),
@@ -92,13 +97,11 @@ impl CosmClient {
             funds: vec![], // TODO
         }
         .to_any()
-        .unwrap();
+        .map_err(ClientError::proto_encoding)?;
 
         let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
 
-        let res = self
-            .find_event(&tx_res, "instantiate")
-            .context("error instantiating code")?;
+        let res = self.find_event(&tx_res, "instantiate").unwrap();
 
         let addr = res
             .attributes
@@ -119,9 +122,11 @@ impl CosmClient {
         address: String,
         payload: Vec<u8>,
         signing_key: &SigningKey,
-    ) -> Result<ExecResponse> {
+    ) -> Result<ExecResponse, ClientError> {
         let signing_public_key = signing_key.public_key();
-        let sender_account_id = signing_public_key.account_id(&self.cfg.prefix).unwrap();
+        let sender_account_id = signing_public_key
+            .account_id(&self.cfg.prefix)
+            .map_err(ClientError::crypto)?;
 
         let msg = MsgExecuteContract {
             sender: sender_account_id.clone(),
@@ -130,7 +135,7 @@ impl CosmClient {
             funds: vec![], // TODO
         }
         .to_any()
-        .unwrap();
+        .map_err(ClientError::proto_encoding)?;
 
         let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
 
@@ -139,26 +144,23 @@ impl CosmClient {
         })
     }
 
-    pub async fn query(&self, address: String, payload: Vec<u8>) -> Result<QueryResponse> {
-        let req = QuerySmartContractStateRequest {
-            address: address.parse().unwrap(),
-            query_data: payload,
-        };
-
-        let mut buf = Vec::with_capacity(req.encoded_len());
-        req.encode(&mut buf)?;
-
+    pub async fn query(
+        &self,
+        address: String,
+        payload: Vec<u8>,
+    ) -> Result<QueryResponse, ClientError> {
         let res = self
-            .client
             .abci_query(
-                Some("/cosmwasm.wasm.v1.Query/SmartContractState".parse()?),
-                buf,
-                None,
-                false,
+                QuerySmartContractStateRequest {
+                    address: address.parse().unwrap(),
+                    query_data: payload,
+                },
+                "/cosmwasm.wasm.v1.Query/SmartContractState",
             )
             .await?;
 
-        let res = QuerySmartContractStateResponse::decode(res.value.as_slice())?;
+        let res = QuerySmartContractStateResponse::decode(res.value.as_slice())
+            .map_err(ClientError::prost_proto_de)?;
 
         // TODO: I shouldnt expose TxResult from this file, I should make my own type instead of re-exporting too
         //  * also Query is not a tx so this doesnt really make sense to conform to this type
@@ -171,7 +173,12 @@ impl CosmClient {
         })
     }
 
-    async fn send_tx(&self, msg: Any, key: &SigningKey, account_id: AccountId) -> Result<Response> {
+    async fn send_tx(
+        &self,
+        msg: Any,
+        key: &SigningKey,
+        account_id: AccountId,
+    ) -> Result<Response, ClientError> {
         let timeout_height = 0u16; // TODO
         let account = self.account(account_id).await?;
 
@@ -181,50 +188,79 @@ impl CosmClient {
 
         let auth_info =
             SignerInfo::single_direct(Some(key.public_key()), account.sequence).auth_info(fee);
+
         let sign_doc = SignDoc::new(
             &tx_body,
             &auth_info,
-            &self.cfg.chain_id.parse()?,
+            &self
+                .cfg
+                .chain_id
+                .parse()
+                .map_err(|_| ClientError::ChainId {
+                    chain_id: self.cfg.chain_id.to_string(),
+                })?,
             account.account_number,
         )
-        .unwrap();
-        let tx_raw = sign_doc.sign(key).unwrap();
+        .map_err(ClientError::proto_encoding)?;
 
-        let tx_commit_response = tx_raw.broadcast_commit(&self.client).await.unwrap();
+        let tx_raw = sign_doc.sign(key).map_err(ClientError::crypto)?;
+
+        let tx_commit_response = tx_raw
+            .broadcast_commit(&self.client)
+            .await
+            .map_err(ClientError::proto_encoding)?;
 
         if tx_commit_response.check_tx.code.is_err() {
-            bail!("check_tx failed: {:?}", tx_commit_response.check_tx)
+            return Err(ClientError::CosmosSdk {
+                res: tx_commit_response.check_tx.into(),
+            });
         }
         if tx_commit_response.deliver_tx.code.is_err() {
-            bail!("deliver_tx failed: {:?}", tx_commit_response.deliver_tx);
+            return Err(ClientError::CosmosSdk {
+                res: tx_commit_response.deliver_tx.into(),
+            });
         }
 
         Ok(tx_commit_response)
     }
 
-    async fn account(&self, account_id: AccountId) -> Result<BaseAccount> {
-        let req = QueryAccountRequest {
-            address: account_id.as_ref().into(),
-        };
-
+    async fn abci_query<T: Message>(&self, req: T, path: &str) -> Result<AbciQuery, ClientError> {
         let mut buf = Vec::with_capacity(req.encoded_len());
-        req.encode(&mut buf)?;
+        req.encode(&mut buf).map_err(ClientError::prost_proto_en)?;
 
         let res = self
             .client
+            .abci_query(Some(path.parse().unwrap()), buf, None, false)
+            .await?;
+
+        if res.code != Code::Ok {
+            return Err(ClientError::CosmosSdk { res: res.into() });
+        }
+
+        Ok(res)
+    }
+
+    async fn account(&self, account_id: AccountId) -> Result<BaseAccount, ClientError> {
+        let res = self
             .abci_query(
-                Some("/cosmos.auth.v1beta1.Query/Account".parse()?),
-                buf,
-                None,
-                false,
+                QueryAccountRequest {
+                    address: account_id.as_ref().into(),
+                },
+                "/cosmos.auth.v1beta1.Query/Account",
             )
             .await?;
 
-        let res = QueryAccountResponse::decode(res.value.as_slice())?
+        let res = QueryAccountResponse::decode(res.value.as_slice())
+            .map_err(ClientError::prost_proto_de)?
             .account
-            .context("cannot fetch account")?;
+            .ok_or(ClientError::AccountId {
+                id: account_id.to_string(),
+            })?;
 
-        Ok(BaseAccount::decode(res.value.as_slice())?)
+        let base_account =
+            BaseAccount::decode(res.value.as_slice()).map_err(ClientError::prost_proto_de)?;
+
+        Ok(base_account)
     }
 
     #[allow(deprecated)]
@@ -233,12 +269,16 @@ impl CosmClient {
         tx: &tx::Body,
         account: &BaseAccount,
         key: &SigningKey,
-    ) -> Result<Fee> {
+    ) -> Result<Fee, ClientError> {
         // TODO: support passing in the exact fee too (should be on a per process_msg() call)
+        let denom: Denom = self.cfg.denom.parse().map_err(|_| ClientError::Denom {
+            name: self.cfg.denom.clone(),
+        })?;
+
         let signer_info = SignerInfo::single_direct(Some(key.public_key()), account.sequence);
         let auth_info = signer_info.auth_info(Fee::from_amount_and_gas(
             Coin {
-                denom: self.cfg.denom.parse().unwrap(),
+                denom: denom.clone(),
                 amount: 0u64.into(),
             },
             0u64,
@@ -247,38 +287,37 @@ impl CosmClient {
         let sign_doc = SignDoc::new(
             tx,
             &auth_info,
-            &self.cfg.chain_id.parse().unwrap(),
+            &self
+                .cfg
+                .chain_id
+                .parse()
+                .map_err(|_| ClientError::ChainId {
+                    chain_id: self.cfg.chain_id.to_string(),
+                })?,
             account.account_number,
         )
-        .unwrap();
+        .map_err(ClientError::proto_encoding)?;
 
-        let tx_raw = sign_doc.sign(key).unwrap();
-
-        let req = SimulateRequest {
-            tx: None,
-            tx_bytes: tx_raw.to_bytes().unwrap(),
-        };
-
-        let mut buf = Vec::with_capacity(req.encoded_len());
-        req.encode(&mut buf)?;
+        let tx_raw = sign_doc.sign(key).map_err(ClientError::crypto)?;
 
         let res = self
-            .client
             .abci_query(
-                Some("/cosmos.tx.v1beta1.Service/Simulate".parse()?),
-                buf,
-                None,
-                false,
+                SimulateRequest {
+                    tx: None,
+                    tx_bytes: tx_raw.to_bytes().map_err(ClientError::proto_encoding)?,
+                },
+                "/cosmos.tx.v1beta1.Service/Simulate",
             )
             .await?;
 
-        let gas_info = SimulateResponse::decode(res.value.as_slice())?
+        let gas_info = SimulateResponse::decode(res.value.as_slice())
+            .map_err(ClientError::prost_proto_de)?
             .gas_info
-            .context("error simulating tx")?;
+            .unwrap();
 
         let gas_limit = (gas_info.gas_used as f64 * self.cfg.gas_adjustment).ceil();
         let amount = Coin {
-            denom: self.cfg.denom.parse().unwrap(),
+            denom: denom.clone(),
             amount: ((gas_limit * self.cfg.gas_prices).ceil() as u64).into(),
         };
 
