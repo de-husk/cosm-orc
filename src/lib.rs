@@ -15,7 +15,7 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! # use anyhow::Result;
+//! # use std::error::Error;
 //! # use cosm_orc::{
 //! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
@@ -23,7 +23,7 @@
 //! # use cosm_orc::config::key::SigningKey;
 //! # use cosm_orc::config::key::Key;
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-//! # fn main() -> Result<()> {
+//! # fn main() -> Result<(), Box<dyn Error>> {
 //!     // config.yaml has the cw20_base code_id already stored
 //!     // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
 //!     let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
