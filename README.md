@@ -36,7 +36,8 @@ let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
     }),
     WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
 ];
-cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+
+let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
 ```
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
@@ -67,7 +68,8 @@ let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
     }),
     WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
 ];
-cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+
+let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
 ```
 
 ## Gas Profiling

@@ -8,6 +8,8 @@
 //! * Deployments / Bootstrapping environments
 //! * Gas profiling
 //!
+//! This project is not yet intended to be used for mainnet.
+//!
 //! [cosmwasm]: https://github.com/CosmWasm/cosmwasm
 //! [Cosmos]: https://github.com/cosmos/cosmos-sdk
 //!
@@ -45,7 +47,7 @@
 //!         WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
 //!     ];
 //!
-//!      cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+//!      let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
 //! #    Ok(())
 //! # }
 //! ```
