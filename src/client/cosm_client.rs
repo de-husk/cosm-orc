@@ -186,6 +186,7 @@ impl CosmClient {
 
         let fee = self.simulate_gas_fee(&tx_body, &account, key).await?;
 
+        // NOTE: if we are making requests in parallel with the same key, we need to serialize `account.sequence` to avoid errors
         let auth_info =
             SignerInfo::single_direct(Some(key.public_key()), account.sequence).auth_info(fee);
 

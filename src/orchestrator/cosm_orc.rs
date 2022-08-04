@@ -152,8 +152,6 @@ impl CosmOrc {
     /// # Arguments
     /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
     /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
-    ///
-    /// # Errors (TODO: Add all docs for all errors)
     #[track_caller]
     pub fn process_msg<X, Y, Z, S>(
         &mut self,
