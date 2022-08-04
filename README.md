@@ -16,6 +16,7 @@ Potential uses:
 This project is not yet intended to be used for mainnet.
 
 ## Quick Start
+
  ```rust
 // juno_local.yaml has the `cw20_base` code_id already stored
 // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
@@ -25,24 +26,32 @@ let key = SigningKey {
     key: Key::Mnemonic("word1 word2 ...".to_string()),
 };
 
-let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-    WasmMsg::InstantiateMsg(InstantiateMsg {
+cosm_orc.instantiate(
+    "cw20_base",
+    "meme_token_test",
+    &InstantiateMsg {
         name: "Meme Token".to_string(),
         symbol: "MEME".to_string(),
         decimals: 6,
         initial_balances: vec![],
         mint: None,
         marketing: None,
-    }),
-    WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-];
+    },
+    &key,
+)?;
 
-let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+let res = cosm_orc.query(
+    "cw20_base",
+    "meme_token_test",
+    &QueryMsg::TokenInfo {},
+)?;
+let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
 ```
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
 
 ## Store Contracts
+
 If `config.yaml` doesn't have the pre-stored contract code ids, you can call `store_contracts()`:
  ```rust
 let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
@@ -54,37 +63,64 @@ let key = SigningKey {
 // `./artifacts` is a directory that contains the rust optimized wasm files.
 //
 // NOTE: currently cosm-orc is expecting a wasm filed called: `cw20_base.wasm`
-// to be in `/artifacts`, since `cw20_base` is used as the contract name in process_msgs() call below
+// to be in `/artifacts`, since `cw20_base` is used as the contract name in the instantiate()/query() calls below:
 cosm_orc.store_contracts("./artifacts", &key)?;
 
-let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-    WasmMsg::InstantiateMsg(InstantiateMsg {
+cosm_orc.instantiate(
+    "cw20_base",
+    "meme_token_test",
+    &InstantiateMsg {
         name: "Meme Token".to_string(),
         symbol: "MEME".to_string(),
         decimals: 6,
         initial_balances: vec![],
         mint: None,
         marketing: None,
-    }),
-    WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-];
+    },
+    &key,
+)?;
 
-let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+let res = cosm_orc.query(
+    "cw20_base",
+    "meme_token_test",
+    &QueryMsg::TokenInfo {},
+)?;
+let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
 ```
 
 ## Gas Profiling
+
  ```rust
 let mut cosm_orc =
     CosmOrc::new(Config::from_yaml("config.yaml")?)?.add_profiler(Box::new(GasProfiler::new()));
 
-cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+cosm_orc.instantiate(
+    "cw20_base",
+    "meme_token_test",
+    &InstantiateMsg {
+        name: "Meme Token".to_string(),
+        symbol: "MEME".to_string(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: None,
+        marketing: None,
+    },
+    &key,
+)?;
 
 let reports = cosm_orc.profiler_reports()?;
 ```
 
+### Gas Report Github Action
+
+Use the [cosm-orc-github-action](https://github.com/de-husk/cosm-orc-gas-diff-action) to view the cosm-orc gas usage as a PR comment.
+
+Github action also supports showing the diff between 2 different reports.
+
+Examples:
+ * https://github.com/de-husk/cosm-orc-examples/pull/7
 
 ## Configuration
-
 
 See [./example-configs](./example-configs/) directory for example yaml configs.
 

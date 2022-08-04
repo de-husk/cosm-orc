@@ -20,34 +20,42 @@
 //! # use std::error::Error;
 //! # use cosm_orc::{
 //! #    config::cfg::Config,
-//! #    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
+//! #    orchestrator::cosm_orc::CosmOrc,
 //! # };
 //! # use cosm_orc::config::key::SigningKey;
 //! # use cosm_orc::config::key::Key;
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+//! # use cw20::TokenInfoResponse;
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//!     // juno_local.yaml has the cw20_base code_id already stored
-//!     // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-//!     let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
-//!
-//!     let key = SigningKey {
+//!      // juno_local.yaml has the `cw20_base` code_id already stored
+//!      // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
+//!      let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+//!      let key = SigningKey {
 //!          name: "validator".to_string(),
 //!          key: Key::Mnemonic("word1 word2 ...".to_string()),
 //!      };
-//!
-//!     let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-//!         WasmMsg::InstantiateMsg(InstantiateMsg {
-//!             name: "Meme Token".to_string(),
-//!             symbol: "MEME".to_string(),
-//!             decimals: 6,
-//!             initial_balances: vec![],
-//!             mint: None,
-//!             marketing: None,
-//!         }),
-//!         WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-//!     ];
-//!
-//!      let res = cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+//!      
+//!      cosm_orc.instantiate(
+//!          "cw20_base",
+//!          "meme_token_test",
+//!          &InstantiateMsg {
+//!              name: "Meme Token".to_string(),
+//!              symbol: "MEME".to_string(),
+//!              decimals: 6,
+//!              initial_balances: vec![],
+//!              mint: None,
+//!              marketing: None,
+//!          },
+//!          &key,
+//!      )?;
+//!      
+//!      let res = cosm_orc.query(
+//!          "cw20_base",
+//!          "meme_token_test",
+//!          &QueryMsg::TokenInfo {},
+//!      )?;
+//!      
+//!      let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
 //! #    Ok(())
 //! # }
 //! ```
@@ -60,7 +68,7 @@
 //! # use std::error::Error;
 //! # use cosm_orc::{
 //! #    config::cfg::Config,
-//! #    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
+//! #    orchestrator::cosm_orc::CosmOrc,
 //! # };
 //! # use cosm_orc::config::key::SigningKey;
 //! # use cosm_orc::config::key::Key;
@@ -79,19 +87,25 @@
 //!     // to be in `/artifacts`, since `cw20_base` is used as the contract name in process_msgs() call below
 //!     cosm_orc.store_contracts("./artifacts", &key)?;
 //!
-//!     let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-//!         WasmMsg::InstantiateMsg(InstantiateMsg {
-//!             name: "Meme Token".to_string(),
-//!             symbol: "MEME".to_string(),
-//!             decimals: 6,
-//!             initial_balances: vec![],
-//!             mint: None,
-//!             marketing: None,
-//!         }),
-//!         WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-//!     ];
-//!
-//!      cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+//!      cosm_orc.instantiate(
+//!          "cw20_base",
+//!          "meme_token_test",
+//!          &InstantiateMsg {
+//!              name: "Meme Token".to_string(),
+//!              symbol: "MEME".to_string(),
+//!              decimals: 6,
+//!              initial_balances: vec![],
+//!              mint: None,
+//!              marketing: None,
+//!          },
+//!          &key,
+//!      )?;
+//!      
+//!      let res = cosm_orc.query(
+//!          "cw20_base",
+//!          "meme_token_test",
+//!          &QueryMsg::TokenInfo {},
+//!      )?;
 //! #    Ok(())
 //! # }
 //! ```
@@ -102,7 +116,7 @@
 //! # use std::error::Error;
 //! # use cosm_orc::{
 //! #    config::cfg::Config,
-//! #    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
+//! #    orchestrator::cosm_orc::CosmOrc,
 //! #    profilers::gas_profiler::GasProfiler,
 //! # };
 //! # use cosm_orc::config::key::SigningKey;
@@ -117,26 +131,22 @@
 //!          key: Key::Mnemonic("word1 word2 ...".to_string()),
 //!      };
 //!
-//!     // `./artifacts` is a directory that contains the rust optimized wasm files.
-//!     //
-//!     // NOTE: currently cosm-orc is expecting a wasm filed called: `cw20_base.wasm`
-//!     // to be in `/artifacts`, since `cw20_base` is used as the contract name in process_msgs() call below
-//!     cosm_orc.store_contracts("./artifacts", &key)?;
+//!     cosm_orc.instantiate(
+//!          "cw20_base",
+//!          "meme_token_test",
+//!          &InstantiateMsg {
+//!              name: "Meme Token".to_string(),
+//!              symbol: "MEME".to_string(),
+//!              decimals: 6,
+//!              initial_balances: vec![],
+//!              mint: None,
+//!              marketing: None,
+//!          },
+//!          &key,
+//!      )?;
 //!
-//!     let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-//!         WasmMsg::InstantiateMsg(InstantiateMsg {
-//!             name: "Meme Token".to_string(),
-//!             symbol: "MEME".to_string(),
-//!             decimals: 6,
-//!             initial_balances: vec![],
-//!             mint: None,
-//!             marketing: None,
-//!         }),
-//!         WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-//!     ];
-//!
-//!      cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
 //!      let reports = cosm_orc.profiler_reports()?;
+//!
 //! #    Ok(())
 //! # }
 //! ```
