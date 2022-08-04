@@ -8,8 +8,8 @@ readme = "README.md"
 description = "Cosmwasm smart contract orchestration and gas profiling library"
 repository = "https://github.com/de-husk/cosm-orc.git"
 
-keywords = ["cosmwasm", "smart-contract", "profiling"]
-categories = ["cosmwasm", "smart-contract", "cosmos", "blockchain"]
+keywords = ["cosmos", "cosmwasm", "smart-contract", "profiling"]
+categories = ["cryptography::cryptocurrencies"]
 license = "Apache-2.0"
 
 

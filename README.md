@@ -17,40 +17,68 @@ This project is not yet intended to be used for mainnet.
 
 ## Quick Start
  ```rust
-use cosm_orc::config::key::Key;
-use cosm_orc::config::key::SigningKey;
-use cosm_orc::{
-    config::cfg::Config,
-    orchestrator::cosm_orc::{CosmOrc, WasmMsg},
+// juno_local.yaml has the `cw20_base` code_id already stored
+// If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
+let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+let key = SigningKey {
+    name: "validator".to_string(),
+    key: Key::Mnemonic("word1 word2 ...".to_string()),
 };
-use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use std::error::Error;
-fn main() -> Result<(), Box<dyn Error>> {
-    // juno_local.yaml has the cw20_base code_id already stored
-    // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-    let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
-    let key = SigningKey {
-        name: "validator".to_string(),
-        key: Key::Mnemonic("word1 word2 ...".to_string()),
-    };
 
-    let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
-        WasmMsg::InstantiateMsg(InstantiateMsg {
-            name: "Meme Token".to_string(),
-            symbol: "MEME".to_string(),
-            decimals: 6,
-            initial_balances: vec![],
-            mint: None,
-            marketing: None,
-        }),
-        WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
-    ];
-    cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
-    Ok(())
-}
+let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
+    WasmMsg::InstantiateMsg(InstantiateMsg {
+        name: "Meme Token".to_string(),
+        symbol: "MEME".to_string(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: None,
+        marketing: None,
+    }),
+    WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
+];
+cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
 ```
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
+
+## Store Contracts
+If `config.yaml` doesn't have the pre-stored contract code ids, you can call `store_contracts()`:
+ ```rust
+let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+let key = SigningKey {
+    name: "validator".to_string(),
+    key: Key::Mnemonic("word1 word2 ...".to_string()),
+};
+
+// `./artifacts` is a directory that contains the rust optimized wasm files.
+//
+// NOTE: currently cosm-orc is expecting a wasm filed called: `cw20_base.wasm`
+// to be in `/artifacts`, since `cw20_base` is used as the contract name in process_msgs() call below
+cosm_orc.store_contracts("./artifacts", &key)?;
+
+let msgs: Vec<WasmMsg<InstantiateMsg, ExecuteMsg, QueryMsg>> = vec![
+    WasmMsg::InstantiateMsg(InstantiateMsg {
+        name: "Meme Token".to_string(),
+        symbol: "MEME".to_string(),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: None,
+        marketing: None,
+    }),
+    WasmMsg::QueryMsg(QueryMsg::TokenInfo {}),
+];
+cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+```
+
+## Gas Profiling
+ ```rust
+let mut cosm_orc =
+    CosmOrc::new(Config::from_yaml("config.yaml")?)?.add_profiler(Box::new(GasProfiler::new()));
+
+cosm_orc.process_msgs("cw20_base", "meme_token_test", &msgs, &key)?;
+
+let reports = cosm_orc.profiler_reports()?;
+```
 
 
 ## Configuration
