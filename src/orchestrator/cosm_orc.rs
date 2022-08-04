@@ -58,12 +58,14 @@ impl CosmOrc {
 
     // TODO: allow for the ability to optimize the wasm here too
 
-    /// Uploads the contracts in `wasm_dir` to the configured chain
-    /// saving the resulting contract ids in `contract_map` and
-    /// returning the raw cosmos json responses.
+    /// Uploads the contracts in [`wasm_dir`] to the configured chain
+    /// saving the resulting contract ids in [`contract_map`].
     ///
     /// You don't need to call this function if all of the smart contract ids
-    /// are already configured via `cfg.code_ids`.
+    /// are already configured via [`config::cfg::Config.code_ids`].
+    ///
+    /// NOTE: Currently, the name of the wasm files in [`wasm_dir`] will be
+    /// used as the [`contract_name`] parameter to [`Self::process_msg()`].
     #[track_caller]
     pub fn store_contracts(
         &mut self,
@@ -111,8 +113,9 @@ impl CosmOrc {
         Ok(responses)
     }
 
-    /// Executes multiple smart contract operations against the configured chain
-    /// returning the raw cosmos json responses.
+    /// Executes multiple smart contract operations against the configured chain.
+    ///
+    /// See: [`Self::process_msg()`]
     #[track_caller]
     pub fn process_msgs<X, Y, Z, S>(
         &mut self,
@@ -147,11 +150,16 @@ impl CosmOrc {
         Ok(responses)
     }
 
-    /// Executes a single smart contract operation against the configured chain
-    /// returning the raw cosmos json response.
+    /// Executes a single smart contract operation against the configured chain.
+    ///
     /// # Arguments
-    /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
-    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    /// * [`contract_name`] - Deployed smart contract name for the corresponding [`msg`].
+    /// * [`msg`] - WasmMsg that [`contract_name`] supports.
+    /// * [`op_name`] - Human readable operation name for profiling bookkeeping usage.
+    ///
+    /// # Errors
+    /// * For InstantiateMsgs if [`contract_name`] is not configured or stored through [Self::store_contracts()] [`cosm_orc::orchestrator::error::ContractMapError::NotStored`] is thrown.
+    /// * For ExecuteMsgs if [`contract_name`] was not initialized [`cosm_orc::orchestrator::error::ContractMapError::NotDeployed`] is thrown.
     #[track_caller]
     pub fn process_msg<X, Y, Z, S>(
         &mut self,
