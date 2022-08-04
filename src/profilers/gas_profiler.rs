@@ -42,7 +42,6 @@ impl Profiler for GasProfiler {
         op_type: CommandType,
         response: &TxResult,
         caller_loc: &Location,
-        msg_idx: usize,
     ) -> Result<(), Box<dyn Error>> {
         if op_type == CommandType::Query {
             // Wasm Query msgs don't cost gas
@@ -51,7 +50,7 @@ impl Profiler for GasProfiler {
 
         let caller_file_name = caller_loc.file().to_string();
         let caller_line_number = caller_loc.line();
-        let op_key = format!("{:?}__{}[{}]", op_type, op_name, msg_idx);
+        let op_key = format!("{:?}__{}", op_type, op_name);
 
         let m = self.report.entry(contract).or_default();
         m.insert(

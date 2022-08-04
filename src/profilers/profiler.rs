@@ -24,7 +24,6 @@ pub trait Profiler {
         op_type: CommandType,
         response: &TxResult,
         caller_loc: &Location,
-        msg_idx: usize,
     ) -> Result<(), Box<dyn Error>>;
     fn report(&self) -> Result<Report, Box<dyn Error>>;
 }
