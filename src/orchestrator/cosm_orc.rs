@@ -111,7 +111,7 @@ impl CosmOrc {
     /// * `key` - SigningKey used to sign the tx
     ///
     /// # Errors
-    /// * If `contract_name` is not configured or stored through
+    /// * If `contract_name` has not been configured in `Config::code_ids` or stored through
     ///   [Self::store_contracts()] `cosm_orc::orchestrator::error::ContractMapError::NotStored` is thrown.
     #[track_caller]
     pub fn instantiate<S, T>(
