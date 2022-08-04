@@ -51,10 +51,10 @@ impl CosmOrc {
     /// saving the resulting contract ids in `contract_map`.
     ///
     /// You don't need to call this function if all of the smart contract ids
-    /// are already configured via [`config::cfg::Config::code_ids`][code_ids].
+    /// are already configured via `config::cfg::Config::code_ids`.
     ///
     /// NOTE: Currently, the name of the wasm files in `wasm_dir` will be
-    /// used as the `contract_name` parameter to [`Self::process_msg()`].
+    /// used as the `contract_name` parameter to `instantiate()`, `query()` and `execute()`.
     #[track_caller]
     pub fn store_contracts(
         &mut self,
