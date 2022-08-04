@@ -51,17 +51,16 @@ impl CosmOrc {
     /// saving the resulting contract ids in `contract_map`.
     ///
     /// You don't need to call this function if all of the smart contract ids
-    /// are already configured via [`config::cfg::Config::code_ids`][code_ids].
+    /// are already configured via `config::cfg::Config::code_ids`.
     ///
     /// NOTE: Currently, the name of the wasm files in `wasm_dir` will be
-    /// used as the `contract_name` parameter to [`Self::process_msg()`].
+    /// used as the `contract_name` parameter to `instantiate()`, `query()` and `execute()`.
     #[track_caller]
     pub fn store_contracts(
         &mut self,
         wasm_dir: &str,
         key: &SigningKey,
     ) -> Result<Vec<TxResult>, StoreError> {
-        let caller_loc = Location::caller();
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -90,8 +89,7 @@ impl CosmOrc {
                         "Store".to_string(),
                         CommandType::Store,
                         &res.data,
-                        caller_loc,
-                        0,
+                        Location::caller(),
                     )
                     .map_err(StoreError::instrument)?;
                 }
@@ -147,7 +145,6 @@ impl CosmOrc {
                 CommandType::Instantiate,
                 &res.data,
                 Location::caller(),
-                0,
             )
             .map_err(ProcessError::instrument)?;
         }
@@ -200,7 +197,6 @@ impl CosmOrc {
                 CommandType::Execute,
                 &res.data,
                 Location::caller(),
-                0,
             )
             .map_err(ProcessError::instrument)?;
         }
@@ -244,10 +240,9 @@ impl CosmOrc {
             prof.instrument(
                 contract_name.clone(),
                 op_name.clone(),
-                CommandType::Execute,
+                CommandType::Query,
                 &res.data,
                 Location::caller(),
-                0,
             )
             .map_err(ProcessError::instrument)?;
         }
