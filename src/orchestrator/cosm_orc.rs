@@ -22,17 +22,6 @@ pub struct CosmOrc {
     profilers: Vec<Box<dyn Profiler + Send>>,
 }
 
-pub enum WasmMsg<X, Y, Z>
-where
-    X: Serialize,
-    Y: Serialize,
-    Z: Serialize,
-{
-    InstantiateMsg(X),
-    ExecuteMsg(Y),
-    QueryMsg(Z),
-}
-
 impl Debug for CosmOrc {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.contract_map)
@@ -113,148 +102,159 @@ impl CosmOrc {
         Ok(responses)
     }
 
-    /// Executes multiple smart contract operations against the configured chain.
+    /// Initializes a smart contract against the configured chain.
     ///
-    /// See: [`Self::process_msg()`]
+    /// # Arguments
+    /// * `contract_name` - Stored smart contract name for the corresponding `msg`.
+    /// * `msg` - InstantiateMsg that `contract_name` supports.
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    /// * `key` - SigningKey used to sign the tx
+    ///
+    /// # Errors
+    /// * If `contract_name` has not been configured in `Config::code_ids` or stored through
+    ///   [Self::store_contracts()] `cosm_orc::orchestrator::error::ContractMapError::NotStored` is thrown.
     #[track_caller]
-    pub fn process_msgs<X, Y, Z, S>(
+    pub fn instantiate<S, T>(
         &mut self,
         contract_name: S,
         op_name: S,
-        msgs: &[WasmMsg<X, Y, Z>],
+        msg: &T,
         key: &SigningKey,
-    ) -> Result<Vec<TxResult>, ProcessError>
+    ) -> Result<TxResult, ProcessError>
     where
-        X: Serialize,
-        Y: Serialize,
-        Z: Serialize,
         S: Into<String>,
+        T: Serialize,
     {
-        let caller_loc = Location::caller();
         let contract_name = contract_name.into();
         let op_name = op_name.into();
 
-        let mut responses = vec![];
-        for (idx, msg) in msgs.iter().enumerate() {
-            let res = self.process_msg_internal(
-                contract_name.clone(),
-                op_name.clone(),
-                msg,
-                key,
-                idx,
-                caller_loc,
-            )?;
-            responses.push(res);
-        }
-
-        Ok(responses)
-    }
-
-    /// Executes a single smart contract operation against the configured chain.
-    ///
-    /// # Arguments
-    /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
-    /// * `msg` - WasmMsg that `contract_name` supports.
-    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
-    ///
-    /// # Errors
-    /// * For InstantiateMsgs if `contract_name` is not configured or stored through
-    ///   [Self::store_contracts()] `cosm_orc::orchestrator::error::ContractMapError::NotStored` is thrown.
-    /// * For ExecuteMsgs if `contract_name` was not initialized
-    ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
-    #[track_caller]
-    pub fn process_msg<X, Y, Z, S>(
-        &mut self,
-        contract_name: S,
-        op_name: S,
-        msg: &WasmMsg<X, Y, Z>,
-        key: &SigningKey,
-    ) -> Result<TxResult, ProcessError>
-    where
-        X: Serialize,
-        Y: Serialize,
-        Z: Serialize,
-        S: Into<String>,
-    {
-        let caller_loc = Location::caller();
-        self.process_msg_internal(
-            contract_name.into(),
-            op_name.into(),
-            msg,
-            key,
-            0,
-            caller_loc,
-        )
-    }
-
-    // process_msg_internal is a private method with an index
-    // of the passed in message for profiler bookkeeping
-    fn process_msg_internal<X, Y, Z>(
-        &mut self,
-        contract_name: String,
-        op_name: String,
-        msg: &WasmMsg<X, Y, Z>,
-        key: &SigningKey,
-        idx: usize,
-        caller_loc: &Location,
-    ) -> Result<TxResult, ProcessError>
-    where
-        X: Serialize,
-        Y: Serialize,
-        Z: Serialize,
-    {
         let code_id = self.contract_map.code_id(&contract_name)?;
 
-        let res = match msg {
-            WasmMsg::InstantiateMsg(m) => {
-                let payload = serde_json::to_vec(&m).map_err(ProcessError::json)?;
+        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
 
-                let res = tokio_block(async {
-                    self.client
-                        .instantiate(code_id, payload, &key.clone().try_into()?)
-                        .await
-                })?;
+        let res = tokio_block(async {
+            self.client
+                .instantiate(code_id, payload, &key.clone().try_into()?)
+                .await
+        })?;
 
-                self.contract_map.add_address(&contract_name, res.address)?;
-
-                res.data
-            }
-            WasmMsg::ExecuteMsg(m) => {
-                let payload = serde_json::to_vec(&m).map_err(ProcessError::json)?;
-                let addr = self.contract_map.address(&contract_name)?;
-
-                let res = tokio_block(async {
-                    self.client
-                        .execute(addr, payload, &key.clone().try_into()?)
-                        .await
-                })?;
-
-                res.data
-            }
-            WasmMsg::QueryMsg(m) => {
-                let payload = serde_json::to_vec(&m).map_err(ProcessError::json)?;
-                let addr = self.contract_map.address(&contract_name)?;
-
-                let res = tokio_block(async { self.client.query(addr, payload).await })?;
-
-                res.data
-            }
-        };
+        self.contract_map.add_address(&contract_name, res.address)?;
 
         for prof in &mut self.profilers {
             prof.instrument(
                 contract_name.clone(),
                 op_name.clone(),
-                msg.into(),
-                &res,
-                caller_loc,
-                idx,
+                CommandType::Instantiate,
+                &res.data,
+                Location::caller(),
+                0,
             )
             .map_err(ProcessError::instrument)?;
         }
 
-        debug!("{:?}", res);
-        Ok(res)
+        debug!("{:?}", res.data);
+
+        Ok(res.data)
+    }
+
+    /// Executes a smart contract operation against the configured chain.
+    ///
+    /// # Arguments
+    /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
+    /// * `msg` - ExecuteMsg that `contract_name` supports.
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    /// * `key` - SigningKey used to sign the tx
+    ///
+    /// # Errors
+    /// * If `contract_name` has not been instantiated via [Self::instantiate()]
+    ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
+    #[track_caller]
+    pub fn execute<S, T>(
+        &mut self,
+        contract_name: S,
+        op_name: S,
+        msg: &T,
+        key: &SigningKey,
+    ) -> Result<TxResult, ProcessError>
+    where
+        S: Into<String>,
+        T: Serialize,
+    {
+        let contract_name = contract_name.into();
+        let op_name = op_name.into();
+
+        let addr = self.contract_map.address(&contract_name)?;
+
+        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
+
+        let res = tokio_block(async {
+            self.client
+                .execute(addr, payload, &key.clone().try_into()?)
+                .await
+        })?;
+
+        for prof in &mut self.profilers {
+            prof.instrument(
+                contract_name.clone(),
+                op_name.clone(),
+                CommandType::Execute,
+                &res.data,
+                Location::caller(),
+                0,
+            )
+            .map_err(ProcessError::instrument)?;
+        }
+
+        debug!("{:?}", res.data);
+
+        Ok(res.data)
+    }
+
+    /// Queries a smart contract operation against the configured chain.
+    ///
+    /// # Arguments
+    /// * `contract_name` - Deployed smart contract name for the corresponding `msg`.
+    /// * `msg` - QueryMsg that `contract_name` supports.
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    ///
+    /// # Errors
+    /// * If `contract_name` has not been instantiated via [Self::instantiate()]
+    ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
+    #[track_caller]
+    pub fn query<S, T>(
+        &mut self,
+        contract_name: S,
+        op_name: S,
+        msg: &T,
+    ) -> Result<TxResult, ProcessError>
+    where
+        S: Into<String>,
+        T: Serialize,
+    {
+        let contract_name = contract_name.into();
+        let op_name = op_name.into();
+
+        let addr = self.contract_map.address(&contract_name)?;
+
+        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
+
+        let res = tokio_block(async { self.client.query(addr, payload).await })?;
+
+        for prof in &mut self.profilers {
+            prof.instrument(
+                contract_name.clone(),
+                op_name.clone(),
+                CommandType::Execute,
+                &res.data,
+                Location::caller(),
+                0,
+            )
+            .map_err(ProcessError::instrument)?;
+        }
+
+        debug!("{:?}", res.data);
+
+        Ok(res.data)
     }
 
     /// Get instrumentation reports for each configured profiler.

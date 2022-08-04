@@ -30,3 +30,4 @@ prost = "0.10.4"
 
 [dev-dependencies]
 cw20-base = "0.13"
+cw20 = "0.13"
