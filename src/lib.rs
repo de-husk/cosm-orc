@@ -55,7 +55,7 @@
 //!      &QueryMsg::TokenInfo {},
 //!  )?;
 //!      
-//!  let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
+//!  let res: TokenInfoResponse = res.data()?;
 //! # Ok(())
 //! # }
 //! ```
