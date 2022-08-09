@@ -45,7 +45,7 @@ let res = cosm_orc.query(
     "meme_token_test",
     &QueryMsg::TokenInfo {},
 )?;
-let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
+let res: TokenInfoResponse = res.data()?;
 ```
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
@@ -85,7 +85,7 @@ let res = cosm_orc.query(
     "meme_token_test",
     &QueryMsg::TokenInfo {},
 )?;
-let res: TokenInfoResponse = serde_json::from_slice(res.data.as_ref().unwrap().value())?;
+let res: TokenInfoResponse = res.data()?;
 ```
 
 ## Gas Profiling

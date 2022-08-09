@@ -1,4 +1,3 @@
-use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use log::{debug, info};
 use serde::Serialize;
 use std::ffi::OsStr;
@@ -8,7 +7,7 @@ use std::panic::Location;
 use std::path::Path;
 
 use super::error::{ProcessError, ReportError, StoreError};
-use crate::client::cosm_client::{tokio_block, CosmClient};
+use crate::client::cosm_client::{tokio_block, CosmClient, TendermintRes};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
 use crate::config::key::SigningKey;
@@ -60,7 +59,7 @@ impl CosmOrc {
         &mut self,
         wasm_dir: &str,
         key: &SigningKey,
-    ) -> Result<Vec<TxResult>, StoreError> {
+    ) -> Result<Vec<TendermintRes>, StoreError> {
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -71,8 +70,7 @@ impl CosmOrc {
 
                 let wasm = fs::read(&wasm_path).map_err(StoreError::wasmfile)?;
 
-                let res =
-                    tokio_block(async { self.client.store(wasm, &key.clone().try_into()?).await })?;
+                let res = tokio_block(async { self.client.store(wasm, key).await })?;
 
                 let contract = wasm_path
                     .file_stem()
@@ -88,13 +86,13 @@ impl CosmOrc {
                         contract.to_string(),
                         "Store".to_string(),
                         CommandType::Store,
-                        &res.data,
+                        &res.res,
                         Location::caller(),
                     )
                     .map_err(StoreError::instrument)?;
                 }
 
-                responses.push(res.data);
+                responses.push(res.res);
             }
         }
         Ok(responses)
@@ -118,7 +116,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<TxResult, ProcessError>
+    ) -> Result<TendermintRes, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -130,11 +128,7 @@ impl CosmOrc {
 
         let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
 
-        let res = tokio_block(async {
-            self.client
-                .instantiate(code_id, payload, &key.clone().try_into()?)
-                .await
-        })?;
+        let res = tokio_block(async { self.client.instantiate(code_id, payload, key).await })?;
 
         self.contract_map.add_address(&contract_name, res.address)?;
 
@@ -143,15 +137,15 @@ impl CosmOrc {
                 contract_name.clone(),
                 op_name.clone(),
                 CommandType::Instantiate,
-                &res.data,
+                &res.res,
                 Location::caller(),
             )
             .map_err(ProcessError::instrument)?;
         }
 
-        debug!("{:?}", res.data);
+        debug!("{:?}", res.res);
 
-        Ok(res.data)
+        Ok(res.res)
     }
 
     /// Executes a smart contract operation against the configured chain.
@@ -172,7 +166,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<TxResult, ProcessError>
+    ) -> Result<TendermintRes, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -184,26 +178,22 @@ impl CosmOrc {
 
         let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
 
-        let res = tokio_block(async {
-            self.client
-                .execute(addr, payload, &key.clone().try_into()?)
-                .await
-        })?;
+        let res = tokio_block(async { self.client.execute(addr, payload, key).await })?;
 
         for prof in &mut self.profilers {
             prof.instrument(
                 contract_name.clone(),
                 op_name.clone(),
                 CommandType::Execute,
-                &res.data,
+                &res.res,
                 Location::caller(),
             )
             .map_err(ProcessError::instrument)?;
         }
 
-        debug!("{:?}", res.data);
+        debug!("{:?}", res.res);
 
-        Ok(res.data)
+        Ok(res.res)
     }
 
     /// Queries a smart contract operation against the configured chain.
@@ -222,7 +212,7 @@ impl CosmOrc {
         contract_name: S,
         op_name: S,
         msg: &T,
-    ) -> Result<TxResult, ProcessError>
+    ) -> Result<TendermintRes, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -241,15 +231,15 @@ impl CosmOrc {
                 contract_name.clone(),
                 op_name.clone(),
                 CommandType::Query,
-                &res.data,
+                &res.res,
                 Location::caller(),
             )
             .map_err(ProcessError::instrument)?;
         }
 
-        debug!("{:?}", res.data);
+        debug!("{:?}", res.res);
 
-        Ok(res.data)
+        Ok(res.res)
     }
 
     /// Get instrumentation reports for each configured profiler.
