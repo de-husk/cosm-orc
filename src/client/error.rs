@@ -1,10 +1,8 @@
-use cosmrs::{
-    tendermint::abci::{Code, Log},
-    ErrorReport,
-};
+use cosmrs::ErrorReport;
 use prost::{DecodeError, EncodeError};
-use tendermint_rpc::endpoint::{abci_query::AbciQuery, broadcast::tx_commit::TxResult};
 use thiserror::Error;
+
+use super::cosm_client::TendermintRes;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -60,26 +58,11 @@ impl ClientError {
     }
 }
 
-#[derive(Debug)]
-pub struct TendermintRes {
-    pub code: Code,
-    pub log: Log,
-}
+#[derive(Error, Debug)]
+pub enum DeserializeError {
+    #[error("Raw tendermint response is empty")]
+    EmptyResponse,
 
-impl From<TxResult> for TendermintRes {
-    fn from(res: TxResult) -> TendermintRes {
-        TendermintRes {
-            code: res.code,
-            log: res.log,
-        }
-    }
-}
-
-impl From<AbciQuery> for TendermintRes {
-    fn from(res: AbciQuery) -> TendermintRes {
-        TendermintRes {
-            code: res.code,
-            log: res.log,
-        }
-    }
+    #[error(transparent)]
+    Serde(#[from] serde_json::error::Error),
 }

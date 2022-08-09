@@ -1,5 +1,6 @@
-use super::error::ClientError;
+use super::error::{ClientError, DeserializeError};
 use crate::config::cfg::ChainCfg;
+use crate::config::key::SigningKey;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
@@ -8,6 +9,7 @@ use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     QuerySmartContractStateRequest, QuerySmartContractStateResponse,
 };
 use cosmrs::cosmwasm::{MsgExecuteContract, MsgInstantiateContract};
+use cosmrs::crypto::secp256k1;
 use cosmrs::rpc::endpoint::broadcast::tx_commit::{Response, TxResult};
 use cosmrs::rpc::Client;
 use cosmrs::tendermint::abci::tag::Key;
@@ -15,12 +17,12 @@ use cosmrs::tendermint::abci::{Code, Event};
 use cosmrs::tx::{Fee, Msg, SignDoc, SignerInfo};
 use cosmrs::{
     cosmwasm::MsgStoreCode,
-    crypto::secp256k1::SigningKey,
     rpc::HttpClient,
     tx::{self},
 };
 use cosmrs::{AccountId, Any, Coin, Denom};
 use prost::Message;
+use serde::Deserialize;
 use std::future::Future;
 use std::str::FromStr;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
@@ -41,23 +43,20 @@ impl CosmClient {
     pub async fn store(
         &self,
         payload: Vec<u8>,
-        signing_key: &SigningKey,
+        key: &SigningKey,
     ) -> Result<StoreCodeResponse, ClientError> {
-        let signing_public_key = signing_key.public_key();
-
-        let sender_account_id = signing_public_key
-            .account_id(&self.cfg.prefix)
-            .map_err(ClientError::crypto)?;
+        let signing_key: secp256k1::SigningKey = key.try_into()?;
+        let account_id = key.to_account(&self.cfg.prefix)?;
 
         let msg = MsgStoreCode {
-            sender: sender_account_id.clone(),
+            sender: account_id.clone(),
             wasm_byte_code: payload,
             instantiate_permission: None,
         }
         .to_any()
         .map_err(ClientError::proto_encoding)?;
 
-        let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
+        let tx_res = self.send_tx(msg, &signing_key, account_id).await?;
 
         let res = self.find_event(&tx_res, "store_code").unwrap();
 
@@ -73,7 +72,7 @@ impl CosmClient {
 
         Ok(StoreCodeResponse {
             code_id,
-            data: tx_res.deliver_tx,
+            res: tx_res.deliver_tx.into(),
         })
     }
 
@@ -81,15 +80,13 @@ impl CosmClient {
         &self,
         code_id: u64,
         payload: Vec<u8>,
-        signing_key: &SigningKey,
+        key: &SigningKey,
     ) -> Result<InstantiateResponse, ClientError> {
-        let signing_public_key = signing_key.public_key();
-        let sender_account_id = signing_public_key
-            .account_id(&self.cfg.prefix)
-            .map_err(ClientError::crypto)?;
+        let signing_key: secp256k1::SigningKey = key.try_into()?;
+        let account_id = key.to_account(&self.cfg.prefix)?;
 
         let msg = MsgInstantiateContract {
-            sender: sender_account_id.clone(),
+            sender: account_id.clone(),
             admin: None, // TODO
             code_id,
             label: Some("cosm-orc".to_string()),
@@ -99,7 +96,7 @@ impl CosmClient {
         .to_any()
         .map_err(ClientError::proto_encoding)?;
 
-        let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
+        let tx_res = self.send_tx(msg, &signing_key, account_id).await?;
 
         let res = self.find_event(&tx_res, "instantiate").unwrap();
 
@@ -113,7 +110,7 @@ impl CosmClient {
 
         Ok(InstantiateResponse {
             address: addr,
-            data: tx_res.deliver_tx,
+            res: tx_res.deliver_tx.into(),
         })
     }
 
@@ -121,15 +118,13 @@ impl CosmClient {
         &self,
         address: String,
         payload: Vec<u8>,
-        signing_key: &SigningKey,
+        key: &SigningKey,
     ) -> Result<ExecResponse, ClientError> {
-        let signing_public_key = signing_key.public_key();
-        let sender_account_id = signing_public_key
-            .account_id(&self.cfg.prefix)
-            .map_err(ClientError::crypto)?;
+        let signing_key: secp256k1::SigningKey = key.try_into()?;
+        let account_id = key.to_account(&self.cfg.prefix)?;
 
         let msg = MsgExecuteContract {
-            sender: sender_account_id.clone(),
+            sender: account_id.clone(),
             contract: address.parse().unwrap(),
             msg: payload,
             funds: vec![], // TODO
@@ -137,10 +132,10 @@ impl CosmClient {
         .to_any()
         .map_err(ClientError::proto_encoding)?;
 
-        let tx_res = self.send_tx(msg, signing_key, sender_account_id).await?;
+        let tx_res = self.send_tx(msg, &signing_key, account_id).await?;
 
         Ok(ExecResponse {
-            data: tx_res.deliver_tx,
+            res: tx_res.deliver_tx.into(),
         })
     }
 
@@ -162,21 +157,13 @@ impl CosmClient {
         let res = QuerySmartContractStateResponse::decode(res.value.as_slice())
             .map_err(ClientError::prost_proto_de)?;
 
-        // TODO: I shouldnt expose TxResult from this file, I should make my own type instead of re-exporting too
-        //  * also Query is not a tx so this doesnt really make sense to conform to this type
-        Ok(QueryResponse {
-            data: TxResult {
-                code: Code::Ok,
-                data: Some(res.data.into()),
-                ..Default::default()
-            },
-        })
+        Ok(QueryResponse { res: res.into() })
     }
 
     async fn send_tx(
         &self,
         msg: Any,
-        key: &SigningKey,
+        key: &secp256k1::SigningKey,
         account_id: AccountId,
     ) -> Result<Response, ClientError> {
         let timeout_height = 0u16; // TODO
@@ -269,7 +256,7 @@ impl CosmClient {
         &self,
         tx: &tx::Body,
         account: &BaseAccount,
-        key: &SigningKey,
+        key: &secp256k1::SigningKey,
     ) -> Result<Fee, ClientError> {
         // TODO: support passing in the exact fee too (should be on a per process_msg() call)
         let denom: Denom = self.cfg.denom.parse().map_err(|_| ClientError::Denom {
@@ -343,24 +330,79 @@ pub fn tokio_block<F: Future>(f: F) -> F::Output {
         .block_on(f)
 }
 
+#[derive(Debug, Default)]
+pub struct TendermintRes {
+    pub code: Code,
+    pub data: Option<Vec<u8>>,
+    pub log: String,
+    pub gas_wanted: u64,
+    pub gas_used: u64,
+}
+
+impl From<TxResult> for TendermintRes {
+    fn from(res: TxResult) -> TendermintRes {
+        TendermintRes {
+            code: res.code,
+            data: res.data.map(|d| d.into()),
+            log: res.log.to_string(),
+            gas_wanted: res.gas_wanted.into(),
+            gas_used: res.gas_used.into(),
+        }
+    }
+}
+
+impl From<AbciQuery> for TendermintRes {
+    fn from(res: AbciQuery) -> TendermintRes {
+        TendermintRes {
+            code: res.code,
+            data: Some(res.value),
+            log: res.log.to_string(),
+            gas_wanted: 0,
+            gas_used: 0,
+        }
+    }
+}
+
+impl From<QuerySmartContractStateResponse> for TendermintRes {
+    fn from(res: QuerySmartContractStateResponse) -> TendermintRes {
+        TendermintRes {
+            code: Code::Ok,
+            data: Some(res.data),
+            ..Default::default()
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct StoreCodeResponse {
     pub code_id: u64,
-    pub data: TxResult,
+    pub res: TendermintRes,
 }
 
 #[derive(Debug)]
 pub struct InstantiateResponse {
     pub address: String,
-    pub data: TxResult,
+    pub res: TendermintRes,
 }
 
 #[derive(Debug)]
 pub struct ExecResponse {
-    pub data: TxResult,
+    pub res: TendermintRes,
 }
 
 #[derive(Debug)]
 pub struct QueryResponse {
-    pub data: TxResult,
+    pub res: TendermintRes,
+}
+
+impl TendermintRes {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        let r: T = serde_json::from_slice(
+            self.data
+                .as_ref()
+                .ok_or(DeserializeError::EmptyResponse)?
+                .as_slice(),
+        )?;
+        Ok(r)
+    }
 }

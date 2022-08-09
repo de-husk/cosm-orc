@@ -1,8 +1,8 @@
-use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
 use std::panic::Location;
 use std::{collections::HashMap, error::Error};
 
+use crate::client::cosm_client::TendermintRes;
 use crate::profilers::profiler::{Profiler, Report};
 
 use super::profiler::CommandType;
@@ -40,7 +40,7 @@ impl Profiler for GasProfiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        response: &TxResult,
+        response: &TendermintRes,
         caller_loc: &Location,
     ) -> Result<(), Box<dyn Error>> {
         if op_type == CommandType::Query {
@@ -56,8 +56,8 @@ impl Profiler for GasProfiler {
         m.insert(
             op_key,
             GasReport {
-                gas_used: response.gas_used.into(),
-                gas_wanted: response.gas_wanted.into(),
+                gas_used: response.gas_used,
+                gas_wanted: response.gas_wanted,
                 file_name: caller_file_name,
                 line_number: caller_line_number,
             },

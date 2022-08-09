@@ -1,6 +1,7 @@
-use cosmrs::rpc::endpoint::broadcast::tx_commit::TxResult;
 use serde::{Deserialize, Serialize};
 use std::{error::Error, panic::Location};
+
+use crate::client::cosm_client::TendermintRes;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum CommandType {
@@ -22,7 +23,7 @@ pub trait Profiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        response: &TxResult,
+        response: &TendermintRes,
         caller_loc: &Location,
     ) -> Result<(), Box<dyn Error>>;
     fn report(&self) -> Result<Report, Box<dyn Error>>;

@@ -1,6 +1,6 @@
-use cosmrs::bip32;
-
 use crate::client::error::ClientError;
+use cosmrs::crypto::secp256k1;
+use cosmrs::{bip32, AccountId};
 
 // TODO: It would be cool if cosm-orc could create test accounts for you
 
@@ -15,6 +15,17 @@ pub struct SigningKey {
     pub key: Key,
 }
 
+impl SigningKey {
+    pub fn to_account(&self, prefix: &str) -> Result<AccountId, ClientError> {
+        let key: secp256k1::SigningKey = self.try_into()?;
+        let account = key
+            .public_key()
+            .account_id(prefix)
+            .map_err(ClientError::crypto)?;
+        Ok(account)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Key {
     /// Mnemonic allows you to pass the private key mnemonic words
@@ -24,12 +35,12 @@ pub enum Key {
     // TODO: Support other types of credentials
 }
 
-impl TryFrom<SigningKey> for cosmrs::crypto::secp256k1::SigningKey {
+impl TryFrom<&SigningKey> for secp256k1::SigningKey {
     type Error = ClientError;
-    fn try_from(signer: SigningKey) -> Result<cosmrs::crypto::secp256k1::SigningKey, ClientError> {
-        match signer.key {
-            Key::Mnemonic(key) => {
-                let seed = bip32::Mnemonic::new(key, bip32::Language::English)
+    fn try_from(signer: &SigningKey) -> Result<secp256k1::SigningKey, ClientError> {
+        match &signer.key {
+            Key::Mnemonic(phrase) => {
+                let seed = bip32::Mnemonic::new(phrase, bip32::Language::English)
                     .map_err(|_| ClientError::Mnemonic)?
                     .to_seed("");
                 Ok(
