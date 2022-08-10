@@ -33,7 +33,7 @@ pub enum ClientError {
     #[error("proto decoding error")]
     ProtoDecoding { source: ErrorReport },
 
-    #[error("CosmosSDK error")]
+    #[error("CosmosSDK error: {res:?}")]
     CosmosSdk { res: TendermintRes },
 
     #[error(transparent)]
