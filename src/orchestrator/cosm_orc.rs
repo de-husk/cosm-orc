@@ -520,7 +520,6 @@ mod tests {
         let report: HashMap<String, HashMap<String, GasReport>> =
             serde_json::from_slice(&reports[0].json_data).unwrap();
         assert_eq!(report.keys().len(), 1);
-        assert_eq!(report.keys().next().unwrap(), &"cw_test".to_string());
         assert_eq!(report.get("cw_test").unwrap().keys().len(), 1);
 
         let r = report
@@ -893,7 +892,6 @@ mod tests {
         let report: HashMap<String, HashMap<String, GasReport>> =
             serde_json::from_slice(&reports[0].json_data).unwrap();
         assert_eq!(report.keys().len(), 1);
-        assert_eq!(report.keys().next().unwrap(), &"cw_test".to_string());
         assert_eq!(report.get("cw_test").unwrap().keys().len(), 1);
 
         let r = report
@@ -918,7 +916,6 @@ mod tests {
         let report: HashMap<String, HashMap<String, GasReport>> =
             serde_json::from_slice(&reports[0].json_data).unwrap();
         assert_eq!(report.keys().len(), 1);
-        assert_eq!(report.keys().next().unwrap(), &"cw_test".to_string());
         assert_eq!(report.get("cw_test").unwrap().keys().len(), 2);
 
         let r = report
