@@ -32,6 +32,10 @@ pub struct CosmClient {
     cfg: ChainCfg,
 }
 
+#[cfg(test)]
+use mockall::automock;
+
+#[cfg_attr(test, automock)]
 impl CosmClient {
     pub fn new(cfg: ChainCfg) -> Result<Self, ClientError> {
         Ok(Self {
@@ -144,15 +148,15 @@ impl CosmClient {
         address: String,
         payload: Vec<u8>,
     ) -> Result<QueryResponse, ClientError> {
-        let res = self
-            .abci_query(
-                QuerySmartContractStateRequest {
-                    address: address.parse().unwrap(),
-                    query_data: payload,
-                },
-                "/cosmwasm.wasm.v1.Query/SmartContractState",
-            )
-            .await?;
+        let res = abci_query(
+            &self.client,
+            QuerySmartContractStateRequest {
+                address: address.parse().unwrap(),
+                query_data: payload,
+            },
+            "/cosmwasm.wasm.v1.Query/SmartContractState",
+        )
+        .await?;
 
         let res = QuerySmartContractStateResponse::decode(res.value.as_slice())
             .map_err(ClientError::prost_proto_de)?;
@@ -212,31 +216,15 @@ impl CosmClient {
         Ok(tx_commit_response)
     }
 
-    async fn abci_query<T: Message>(&self, req: T, path: &str) -> Result<AbciQuery, ClientError> {
-        let mut buf = Vec::with_capacity(req.encoded_len());
-        req.encode(&mut buf).map_err(ClientError::prost_proto_en)?;
-
-        let res = self
-            .client
-            .abci_query(Some(path.parse().unwrap()), buf, None, false)
-            .await?;
-
-        if res.code != Code::Ok {
-            return Err(ClientError::CosmosSdk { res: res.into() });
-        }
-
-        Ok(res)
-    }
-
     async fn account(&self, account_id: AccountId) -> Result<BaseAccount, ClientError> {
-        let res = self
-            .abci_query(
-                QueryAccountRequest {
-                    address: account_id.as_ref().into(),
-                },
-                "/cosmos.auth.v1beta1.Query/Account",
-            )
-            .await?;
+        let res = abci_query(
+            &self.client,
+            QueryAccountRequest {
+                address: account_id.as_ref().into(),
+            },
+            "/cosmos.auth.v1beta1.Query/Account",
+        )
+        .await?;
 
         let res = QueryAccountResponse::decode(res.value.as_slice())
             .map_err(ClientError::prost_proto_de)?
@@ -288,15 +276,15 @@ impl CosmClient {
 
         let tx_raw = sign_doc.sign(key).map_err(ClientError::crypto)?;
 
-        let res = self
-            .abci_query(
-                SimulateRequest {
-                    tx: None,
-                    tx_bytes: tx_raw.to_bytes().map_err(ClientError::proto_encoding)?,
-                },
-                "/cosmos.tx.v1beta1.Service/Simulate",
-            )
-            .await?;
+        let res = abci_query(
+            &self.client,
+            SimulateRequest {
+                tx: None,
+                tx_bytes: tx_raw.to_bytes().map_err(ClientError::proto_encoding)?,
+            },
+            "/cosmos.tx.v1beta1.Service/Simulate",
+        )
+        .await?;
 
         let gas_info = SimulateResponse::decode(res.value.as_slice())
             .map_err(ClientError::prost_proto_de)?
@@ -320,6 +308,25 @@ impl CosmClient {
         }
         None
     }
+}
+
+pub async fn abci_query<T: Message>(
+    client: &HttpClient,
+    req: T,
+    path: &str,
+) -> Result<AbciQuery, ClientError> {
+    let mut buf = Vec::with_capacity(req.encoded_len());
+    req.encode(&mut buf).map_err(ClientError::prost_proto_en)?;
+
+    let res = client
+        .abci_query(Some(path.parse().unwrap()), buf, None, false)
+        .await?;
+
+    if res.code != Code::Ok {
+        return Err(ClientError::CosmosSdk { res: res.into() });
+    }
+
+    Ok(res)
 }
 
 pub fn tokio_block<F: Future>(f: F) -> F::Output {

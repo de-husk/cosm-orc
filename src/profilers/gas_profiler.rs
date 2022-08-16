@@ -12,12 +12,12 @@ pub struct GasProfiler {
     report: HashMap<String, HashMap<String, GasReport>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct GasReport {
-    gas_wanted: u64,
-    gas_used: u64,
-    file_name: String,
-    line_number: u32,
+    pub gas_wanted: u64,
+    pub gas_used: u64,
+    pub file_name: String,
+    pub line_number: u32,
 }
 
 impl GasProfiler {

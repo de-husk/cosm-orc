@@ -71,7 +71,7 @@ pub enum ReportError {
     ReportError { source: Box<dyn std::error::Error> },
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractMapError {
     #[error("smart contract not stored on chain: {name:?}")]
     NotStored { name: String },
