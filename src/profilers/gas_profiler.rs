@@ -12,7 +12,7 @@ pub struct GasProfiler {
     report: HashMap<String, HashMap<String, GasReport>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GasReport {
     pub gas_wanted: u64,
     pub gas_used: u64,

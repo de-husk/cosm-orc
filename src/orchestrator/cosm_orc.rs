@@ -340,7 +340,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -399,7 +399,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -467,7 +467,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -621,7 +621,7 @@ mod tests {
                 eq(payload.clone()),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -645,7 +645,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -719,7 +719,7 @@ mod tests {
                 eq(payload.clone()),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -743,7 +743,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -818,7 +818,7 @@ mod tests {
                 eq(payload.clone()),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -842,7 +842,7 @@ mod tests {
                 eq(payload),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -1009,7 +1009,7 @@ mod tests {
                 eq(payload.clone()),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
@@ -1100,7 +1100,7 @@ mod tests {
                 eq(payload.clone()),
                 function(move |k: &SigningKey| {
                     let Key::Mnemonic(phrase) = &k.key;
-                    k.name == "test".to_string() && phrase == &"word1 word2".to_string()
+                    k.name == "test" && phrase == "word1 word2"
                 }),
             )
             .returning(|_, _, _| {
