@@ -79,3 +79,9 @@ pub enum ContractMapError {
     #[error("smart contract with addr not initialized on chain: {name:?}")]
     NotDeployed { name: String },
 }
+
+#[derive(Error, Debug)]
+pub enum OptimizeError {
+    #[error("error running optimizoor")]
+    Optimize { source: Box<dyn std::error::Error> },
+}
