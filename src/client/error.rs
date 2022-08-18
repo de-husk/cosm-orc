@@ -37,6 +37,12 @@ pub enum ClientError {
     CosmosSdk { res: TendermintRes },
 
     #[error(transparent)]
+    GRPCTransport(#[from] tonic::transport::Error),
+
+    #[error(transparent)]
+    GRPC(#[from] tonic::Status),
+
+    #[error(transparent)]
     RPC(#[from] tendermint_rpc::Error),
 }
 
