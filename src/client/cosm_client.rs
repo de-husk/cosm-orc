@@ -4,7 +4,8 @@ use crate::config::key::SigningKey;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };
-use cosmos_sdk_proto::cosmos::tx::v1beta1::{SimulateRequest, SimulateResponse};
+use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::SimulateRequest;
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     QuerySmartContractStateRequest, QuerySmartContractStateResponse,
 };
@@ -28,7 +29,8 @@ use std::str::FromStr;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 
 pub struct CosmClient {
-    client: HttpClient,
+    // http tendermint RPC client
+    rpc_client: HttpClient,
     cfg: ChainCfg,
 }
 
@@ -39,7 +41,7 @@ use mockall::automock;
 impl CosmClient {
     pub fn new(cfg: ChainCfg) -> Result<Self, ClientError> {
         Ok(Self {
-            client: HttpClient::new(cfg.rpc_endpoint.as_str())?,
+            rpc_client: HttpClient::new(cfg.rpc_endpoint.as_str())?,
             cfg,
         })
     }
@@ -149,7 +151,7 @@ impl CosmClient {
         payload: Vec<u8>,
     ) -> Result<QueryResponse, ClientError> {
         let res = abci_query(
-            &self.client,
+            &self.rpc_client,
             QuerySmartContractStateRequest {
                 address: address.parse().unwrap(),
                 query_data: payload,
@@ -198,7 +200,7 @@ impl CosmClient {
         let tx_raw = sign_doc.sign(key).map_err(ClientError::crypto)?;
 
         let tx_commit_response = tx_raw
-            .broadcast_commit(&self.client)
+            .broadcast_commit(&self.rpc_client)
             .await
             .map_err(ClientError::proto_encoding)?;
 
@@ -218,7 +220,7 @@ impl CosmClient {
 
     async fn account(&self, account_id: AccountId) -> Result<BaseAccount, ClientError> {
         let res = abci_query(
-            &self.client,
+            &self.rpc_client,
             QueryAccountRequest {
                 address: account_id.as_ref().into(),
             },
@@ -276,18 +278,15 @@ impl CosmClient {
 
         let tx_raw = sign_doc.sign(key).map_err(ClientError::crypto)?;
 
-        let res = abci_query(
-            &self.client,
-            SimulateRequest {
+        let mut client = ServiceClient::connect(self.cfg.grpc_endpoint.clone()).await?;
+
+        let gas_info = client
+            .simulate(SimulateRequest {
                 tx: None,
                 tx_bytes: tx_raw.to_bytes().map_err(ClientError::proto_encoding)?,
-            },
-            "/cosmos.tx.v1beta1.Service/Simulate",
-        )
-        .await?;
-
-        let gas_info = SimulateResponse::decode(res.value.as_slice())
-            .map_err(ClientError::prost_proto_de)?
+            })
+            .await?
+            .into_inner()
             .gas_info
             .unwrap();
 

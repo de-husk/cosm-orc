@@ -23,11 +23,14 @@ config = { version = "0.13.1", features = ["yaml"] }
 mockall = "0.11.2"
 mockall_double = "0.3.0"
 
-# NOTE: I need to use an older version of cosmrs until I can fix the transitive dependency collision error
+# TODO: Upgrade to the latest version of cosmrs/cosmos-sdk-proto once
+# cw20 / cw20-base are upgraded to a newer version of `signature` crate to fix the dependency collision error
+
 cosmrs = { version = "0.7.1", features = ["rpc", "cosmwasm"] }
 cosmos-sdk-proto = "0.12.0"
 tendermint-rpc = { version = "0.23.7", features= ["http"] }
 tokio = { version = "1.20.1", features = ["full"] }
+tonic = { version = "0.7.0" }
 prost = "0.10.4"
 
 [dev-dependencies]
