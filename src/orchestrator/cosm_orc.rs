@@ -8,7 +8,10 @@ use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
-use super::error::{OptimizeError, ProcessError, ReportError, StoreError};
+#[cfg(feature = "optimization")]
+use super::error::OptimizeError;
+
+use super::error::{ProcessError, ReportError, StoreError};
 use crate::client::cosm_client::{tokio_block, TendermintRes};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
