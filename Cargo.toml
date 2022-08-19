@@ -14,7 +14,7 @@ license = "Apache-2.0"
 
 
 [features]
-optimization = ["cw-optimizoor"]
+optimize = ["cw-optimizoor"]
 
 [dependencies]
 thiserror = "1.0.31"

@@ -8,7 +8,7 @@ use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
-#[cfg(feature = "optimization")]
+#[cfg(feature = "optimize")]
 use super::error::OptimizeError;
 
 use super::error::{ProcessError, ReportError, StoreError};
@@ -54,7 +54,7 @@ impl CosmOrc {
 
     /// Build and optimize all smart contracts in a given workspace.
     /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
-    #[cfg(feature = "optimization")]
+    #[cfg(feature = "optimize")]
     pub fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
         let workspace_path = Path::new(workspace_path);
         tokio_block(async { cw_optimizoor::run(workspace_path).await })
