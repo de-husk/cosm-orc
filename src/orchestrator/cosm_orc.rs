@@ -50,8 +50,10 @@ impl CosmOrc {
     }
 
     /// Build and optimize all smart contracts in a given workspace.
-    /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml
+    /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
     pub fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
+        // TODO: Consider putting optimize_contracts() behind a cargo feature flag
+        // because it increases build times a lot
         let workspace_path = Path::new(workspace_path);
         tokio_block(async { cw_optimizoor::run(workspace_path).await })
             .map_err(|e| OptimizeError::Optimize { source: e.into() })?;

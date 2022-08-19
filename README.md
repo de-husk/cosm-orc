@@ -50,9 +50,9 @@ let res: TokenInfoResponse = res.data()?;
 
 See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
 
-## Store Contracts
+## Optimize and Store Contracts
 
-If `config.yaml` doesn't have the pre-stored contract code ids, you can call `store_contracts()`:
+If `config.yaml` doesn't have the pre-stored contract code ids, you can call `optimize_contracts()` and `store_contracts()`:
  ```rust
 let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
 let key = SigningKey {
@@ -60,8 +60,10 @@ let key = SigningKey {
     key: Key::Mnemonic("word1 word2 ...".to_string()),
 };
 
-// `./artifacts` is a directory that contains the rust optimized wasm files.
-//
+// Build + optimize all smart contracts in current workspace
+// This will save the optimized wasm files in `./artifacts`
+cosm_orc.optimize_contracts("./Cargo.toml")?;
+
 // NOTE: currently cosm-orc is expecting a wasm filed called: `cw20_base.wasm`
 // to be in `/artifacts`, since `cw20_base` is used as the contract name in the instantiate()/query() calls below:
 cosm_orc.store_contracts("./artifacts", &key)?;
