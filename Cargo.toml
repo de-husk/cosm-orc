@@ -13,6 +13,9 @@ categories = ["cryptography::cryptocurrencies"]
 license = "Apache-2.0"
 
 
+[features]
+optimization = ["cw-optimizoor"]
+
 [dependencies]
 thiserror = "1.0.31"
 backtrace = "0.3"
@@ -22,7 +25,7 @@ log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
 mockall = "0.11.2"
 mockall_double = "0.3.0"
-cw-optimizoor = "0.7.1"
+cw-optimizoor = { version = "0.7.1", optional = true }
 
 # TODO: Upgrade to the latest version of cosmrs/cosmos-sdk-proto once
 # cw20 / cw20-base are upgraded to a newer version of `signature` crate to fix the dependency collision error
