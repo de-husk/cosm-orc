@@ -1,13 +1,14 @@
 use log::{debug, info};
 use mockall_double::double;
 use serde::Serialize;
+use std::env::consts::ARCH;
 use std::ffi::OsStr;
 use std::fmt::{self, Debug};
 use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
-use super::error::{ProcessError, ReportError, StoreError};
+use super::error::{OptimizeError, ProcessError, ReportError, StoreError};
 use crate::client::cosm_client::{tokio_block, TendermintRes};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
@@ -48,13 +49,24 @@ impl CosmOrc {
         self
     }
 
-    // TODO: allow for the ability to optimize the wasm here too
+    /// Build and optimize all smart contracts in a given workspace.
+    /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
+    pub fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
+        // TODO: Consider putting optimize_contracts() behind a cargo feature flag
+        // because it increases build times a lot
+        let workspace_path = Path::new(workspace_path);
+        tokio_block(async { cw_optimizoor::run(workspace_path).await })
+            .map_err(|e| OptimizeError::Optimize { source: e.into() })?;
+        Ok(())
+    }
 
-    /// Uploads the contracts in `wasm_dir` to the configured chain
+    /// Uploads the optimized contracts in `wasm_dir` to the configured chain
     /// saving the resulting contract ids in `contract_map`.
     ///
     /// You don't need to call this function if all of the smart contract ids
     /// are already configured via `config::cfg::Config::code_ids`.
+    ///
+    /// If you have not built and optimized the wasm files, use [Self::optimize_contracts()]
     ///
     /// NOTE: Currently, the name of the wasm files in `wasm_dir` will be
     /// used as the `contract_name` parameter to `instantiate()`, `query()` and `execute()`.
@@ -76,11 +88,17 @@ impl CosmOrc {
 
                 let res = tokio_block(async { self.client.store(wasm, key).await })?;
 
-                let contract = wasm_path
+                let mut contract = wasm_path
                     .file_stem()
                     .ok_or(StoreError::InvalidWasmFileName)?
                     .to_str()
                     .ok_or(StoreError::InvalidWasmFileName)?;
+
+                // parse out OS architecture if optimizoor was used:
+                let arch_suffix = format!("-{}", ARCH);
+                if contract.to_string().ends_with(&arch_suffix) {
+                    contract = contract.trim_end_matches(&arch_suffix);
+                }
 
                 self.contract_map
                     .register_contract(contract.to_string(), res.code_id);
