@@ -8,7 +8,10 @@ use std::fs;
 use std::panic::Location;
 use std::path::Path;
 
-use super::error::{OptimizeError, ProcessError, ReportError, StoreError};
+#[cfg(feature = "optimize")]
+use super::error::OptimizeError;
+
+use super::error::{ProcessError, ReportError, StoreError};
 use crate::client::cosm_client::{tokio_block, TendermintRes};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
@@ -51,9 +54,8 @@ impl CosmOrc {
 
     /// Build and optimize all smart contracts in a given workspace.
     /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
+    #[cfg(feature = "optimize")]
     pub fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
-        // TODO: Consider putting optimize_contracts() behind a cargo feature flag
-        // because it increases build times a lot
         let workspace_path = Path::new(workspace_path);
         tokio_block(async { cw_optimizoor::run(workspace_path).await })
             .map_err(|e| OptimizeError::Optimize { source: e.into() })?;
