@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::panic::Location;
 use std::{collections::HashMap, error::Error};
 
-use crate::client::cosm_client::TendermintRes;
+use crate::client::cosm_client::ChainResponse;
 use crate::profilers::profiler::{Profiler, Report};
 
 use super::profiler::CommandType;
@@ -40,7 +40,7 @@ impl Profiler for GasProfiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        response: &TendermintRes,
+        response: &ChainResponse,
         caller_loc: &Location,
     ) -> Result<(), Box<dyn Error>> {
         if op_type == CommandType::Query {

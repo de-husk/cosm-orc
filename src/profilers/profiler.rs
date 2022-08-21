@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{error::Error, panic::Location};
 
-use crate::client::cosm_client::TendermintRes;
+use crate::client::cosm_client::ChainResponse;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum CommandType {
@@ -23,7 +23,7 @@ pub trait Profiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        response: &TendermintRes,
+        response: &ChainResponse,
         caller_loc: &Location,
     ) -> Result<(), Box<dyn Error>>;
     fn report(&self) -> Result<Report, Box<dyn Error>>;

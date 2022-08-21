@@ -2,7 +2,7 @@ use cosmrs::ErrorReport;
 use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
-use super::cosm_client::TendermintRes;
+use super::cosm_client::ChainResponse;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -34,13 +34,10 @@ pub enum ClientError {
     ProtoDecoding { source: ErrorReport },
 
     #[error("CosmosSDK error: {res:?}")]
-    CosmosSdk { res: TendermintRes },
+    CosmosSdk { res: ChainResponse },
 
     #[error(transparent)]
-    GRPCTransport(#[from] tonic::transport::Error),
-
-    #[error(transparent)]
-    GRPC(#[from] tonic::Status),
+    GRPC(#[from] tonic::transport::Error),
 
     #[error(transparent)]
     RPC(#[from] tendermint_rpc::Error),
