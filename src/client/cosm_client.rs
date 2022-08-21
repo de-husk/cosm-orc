@@ -285,7 +285,14 @@ impl CosmClient {
                 tx: None,
                 tx_bytes: tx_raw.to_bytes().map_err(ClientError::proto_encoding)?,
             })
-            .await?
+            .await
+            .map_err(|e| ClientError::CosmosSdk {
+                res: ChainResponse {
+                    code: Code::Err(e.code() as u32),
+                    log: e.message().to_string(),
+                    ..Default::default()
+                },
+            })?
             .into_inner()
             .gas_info
             .unwrap();
@@ -337,7 +344,7 @@ pub fn tokio_block<F: Future>(f: F) -> F::Output {
 }
 
 #[derive(Debug, Default)]
-pub struct TendermintRes {
+pub struct ChainResponse {
     pub code: Code,
     pub data: Option<Vec<u8>>,
     pub log: String,
@@ -345,9 +352,9 @@ pub struct TendermintRes {
     pub gas_used: u64,
 }
 
-impl From<TxResult> for TendermintRes {
-    fn from(res: TxResult) -> TendermintRes {
-        TendermintRes {
+impl From<TxResult> for ChainResponse {
+    fn from(res: TxResult) -> ChainResponse {
+        ChainResponse {
             code: res.code,
             data: res.data.map(|d| d.into()),
             log: res.log.to_string(),
@@ -357,9 +364,9 @@ impl From<TxResult> for TendermintRes {
     }
 }
 
-impl From<AbciQuery> for TendermintRes {
-    fn from(res: AbciQuery) -> TendermintRes {
-        TendermintRes {
+impl From<AbciQuery> for ChainResponse {
+    fn from(res: AbciQuery) -> ChainResponse {
+        ChainResponse {
             code: res.code,
             data: Some(res.value),
             log: res.log.to_string(),
@@ -369,9 +376,9 @@ impl From<AbciQuery> for TendermintRes {
     }
 }
 
-impl From<QuerySmartContractStateResponse> for TendermintRes {
-    fn from(res: QuerySmartContractStateResponse) -> TendermintRes {
-        TendermintRes {
+impl From<QuerySmartContractStateResponse> for ChainResponse {
+    fn from(res: QuerySmartContractStateResponse) -> ChainResponse {
+        ChainResponse {
             code: Code::Ok,
             data: Some(res.data),
             ..Default::default()
@@ -382,26 +389,26 @@ impl From<QuerySmartContractStateResponse> for TendermintRes {
 #[derive(Debug)]
 pub struct StoreCodeResponse {
     pub code_id: u64,
-    pub res: TendermintRes,
+    pub res: ChainResponse,
 }
 
 #[derive(Debug)]
 pub struct InstantiateResponse {
     pub address: String,
-    pub res: TendermintRes,
+    pub res: ChainResponse,
 }
 
 #[derive(Debug)]
 pub struct ExecResponse {
-    pub res: TendermintRes,
+    pub res: ChainResponse,
 }
 
 #[derive(Debug)]
 pub struct QueryResponse {
-    pub res: TendermintRes,
+    pub res: ChainResponse,
 }
 
-impl TendermintRes {
+impl ChainResponse {
     pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
         let r: T = serde_json::from_slice(
             self.data

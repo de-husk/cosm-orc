@@ -12,7 +12,7 @@ use std::path::Path;
 use super::error::OptimizeError;
 
 use super::error::{ProcessError, ReportError, StoreError};
-use crate::client::cosm_client::{tokio_block, TendermintRes};
+use crate::client::cosm_client::{tokio_block, ChainResponse};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
 use crate::config::key::SigningKey;
@@ -77,7 +77,7 @@ impl CosmOrc {
         &mut self,
         wasm_dir: &str,
         key: &SigningKey,
-    ) -> Result<Vec<TendermintRes>, StoreError> {
+    ) -> Result<Vec<ChainResponse>, StoreError> {
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -140,7 +140,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<TendermintRes, ProcessError>
+    ) -> Result<ChainResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -190,7 +190,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<TendermintRes, ProcessError>
+    ) -> Result<ChainResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -236,7 +236,7 @@ impl CosmOrc {
         contract_name: S,
         op_name: S,
         msg: &T,
-    ) -> Result<TendermintRes, ProcessError>
+    ) -> Result<ChainResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -287,7 +287,7 @@ mod tests {
         client::{
             cosm_client::{ExecResponse, InstantiateResponse, QueryResponse},
             error::ClientError,
-            TendermintRes,
+            ChainResponse,
         },
         config::key::{Key, SigningKey},
         orchestrator::{
@@ -365,7 +365,7 @@ mod tests {
             )
             .returning(|_, _, _| {
                 Err(ClientError::CosmosSdk {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Err(10),
                         data: Some(vec![]),
                         log: "error log".to_string(),
@@ -425,7 +425,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -493,7 +493,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -646,7 +646,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -669,7 +669,7 @@ mod tests {
             )
             .returning(|_, _, _| {
                 Err(ClientError::CosmosSdk {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Err(10),
                         data: Some(vec![]),
                         log: "error log".to_string(),
@@ -744,7 +744,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -767,7 +767,7 @@ mod tests {
             )
             .returning(|_, _, _| {
                 Ok(ExecResponse {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "log".to_string(),
@@ -843,7 +843,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -866,7 +866,7 @@ mod tests {
             )
             .returning(|_, _, _| {
                 Ok(ExecResponse {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "log".to_string(),
@@ -1032,7 +1032,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -1048,7 +1048,7 @@ mod tests {
             .with(eq("cosmos_contract_addr".to_string()), eq(payload))
             .returning(|_, _| {
                 Err(ClientError::CosmosSdk {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Err(10),
                         data: Some(vec![]),
                         log: "error log".to_string(),
@@ -1123,7 +1123,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(InstantiateResponse {
                     address: "cosmos_contract_addr".to_string(),
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
@@ -1139,7 +1139,7 @@ mod tests {
             .with(eq("cosmos_contract_addr".to_string()), eq(payload))
             .returning(|_, _| {
                 Ok(QueryResponse {
-                    res: TendermintRes {
+                    res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "log".to_string(),
