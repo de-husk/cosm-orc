@@ -26,7 +26,9 @@ use prost::Message;
 use serde::Deserialize;
 use std::future::Future;
 use std::str::FromStr;
+use std::time::Duration;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
+use tokio::time;
 
 pub struct CosmClient {
     // http tendermint RPC client
@@ -164,6 +166,33 @@ impl CosmClient {
             .map_err(ClientError::prost_proto_de)?;
 
         Ok(QueryResponse { res: res.into() })
+    }
+
+    pub async fn poll_for_n_blocks(&self, n: u64) -> Result<(), ClientError> {
+        let mut curr_height: u64 = self
+            .rpc_client
+            .latest_block()
+            .await?
+            .block
+            .header
+            .height
+            .into();
+        let target_height: u64 = curr_height + n;
+
+        while curr_height < target_height {
+            time::sleep(Duration::from_millis(500)).await;
+
+            curr_height = self
+                .rpc_client
+                .latest_block()
+                .await?
+                .block
+                .header
+                .height
+                .into();
+        }
+
+        Ok(())
     }
 
     async fn send_tx(

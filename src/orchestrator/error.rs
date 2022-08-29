@@ -1,4 +1,5 @@
 use thiserror::Error;
+use tokio::time::error::Elapsed;
 
 use crate::client::error::ClientError;
 
@@ -84,4 +85,13 @@ pub enum ContractMapError {
 pub enum OptimizeError {
     #[error("error running optimizoor")]
     Optimize { source: Box<dyn std::error::Error> },
+}
+
+#[derive(Error, Debug)]
+pub enum PollBlockError {
+    #[error(transparent)]
+    Timeout(#[from] Elapsed),
+
+    #[error(transparent)]
+    ClientError(#[from] ClientError),
 }
