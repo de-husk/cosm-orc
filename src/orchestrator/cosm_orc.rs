@@ -7,11 +7,13 @@ use std::fmt::{self, Debug};
 use std::fs;
 use std::panic::Location;
 use std::path::Path;
+use std::time::Duration;
+use tokio::time::timeout;
 
 #[cfg(feature = "optimize")]
 use super::error::OptimizeError;
 
-use super::error::{ProcessError, ReportError, StoreError};
+use super::error::{PollBlockError, ProcessError, ReportError, StoreError};
 use crate::client::cosm_client::{tokio_block, ChainResponse};
 use crate::client::error::ClientError;
 use crate::config::cfg::Config;
@@ -264,6 +266,21 @@ impl CosmOrc {
         debug!("{:?}", res.res);
 
         Ok(res.res)
+    }
+
+    /// Blocks the current thread until `n` blocks have been processed.
+    ///
+    /// Throws `PollBlockError` once `timeout_ms` milliseconds have elapsed.
+    pub fn poll_for_n_blocks(&self, n: u64, timeout_ms: u64) -> Result<(), PollBlockError> {
+        tokio_block(async {
+            timeout(
+                Duration::from_millis(timeout_ms),
+                self.client.poll_for_n_blocks(n),
+            )
+            .await
+        })??;
+
+        Ok(())
     }
 
     /// Get instrumentation reports for each configured profiler.
