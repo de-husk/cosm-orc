@@ -7,7 +7,7 @@ use cosmrs::{bip32, AccountId};
 // https://github.com/confio/cosmos-hd-key-derivation-spec#the-cosmos-hub-path
 const DERVIATION_PATH: &str = "m/44'/118'/0'/0/0";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SigningKey {
     /// human readable key name
     pub name: String,
@@ -26,7 +26,7 @@ impl SigningKey {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Key {
     /// Mnemonic allows you to pass the private key mnemonic words
     /// to Cosm-orc for configuring a transaction signing key.

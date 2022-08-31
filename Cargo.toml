@@ -23,8 +23,6 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = "1.0"
 log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
-mockall = "0.11.2"
-mockall_double = "0.3.0"
 cw-optimizoor = { version = "0.7.1", optional = true }
 
 # TODO: Upgrade to the latest version of cosmrs/cosmos-sdk-proto once
@@ -41,3 +39,4 @@ prost = "0.10.4"
 assert_matches = "1.5"
 cw20-base = "0.13"
 cw20 = "0.13"
+faux = "0.1.7"
