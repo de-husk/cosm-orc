@@ -20,7 +20,7 @@ This project is not yet intended to be used for mainnet.
  ```rust
 // juno_local.yaml has the `cw20_base` code_id already stored
 // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?, false)?;
 let key = SigningKey {
     name: "validator".to_string(),
     key: Key::Mnemonic("word1 word2 ...".to_string()),
@@ -42,7 +42,6 @@ cosm_orc.instantiate(
 
 let res = cosm_orc.query(
     "cw20_base",
-    "meme_token_test",
     &QueryMsg::TokenInfo {},
 )?;
 let res: TokenInfoResponse = res.data()?;
@@ -54,7 +53,7 @@ See [here](https://github.com/de-husk/cosm-orc-examples) for example usages.
 
 If `config.yaml` doesn't have the pre-stored contract code ids, you can call `optimize_contracts()` and `store_contracts()`:
  ```rust
-let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?, false)?;
 let key = SigningKey {
     name: "validator".to_string(),
     key: Key::Mnemonic("word1 word2 ...".to_string()),
@@ -84,7 +83,6 @@ cosm_orc.instantiate(
 
 let res = cosm_orc.query(
     "cw20_base",
-    "meme_token_test",
     &QueryMsg::TokenInfo {},
 )?;
 let res: TokenInfoResponse = res.data()?;
@@ -93,8 +91,7 @@ let res: TokenInfoResponse = res.data()?;
 ## Gas Profiling
 
  ```rust
-let mut cosm_orc =
-    CosmOrc::new(Config::from_yaml("config.yaml")?)?.add_profiler(Box::new(GasProfiler::new()));
+let mut cosm_orc = CosmOrc::new(Config::from_yaml("config.yaml")?, true)?;
 
 cosm_orc.instantiate(
     "cw20_base",
@@ -110,7 +107,7 @@ cosm_orc.instantiate(
     &key,
 )?;
 
-let reports = cosm_orc.profiler_reports()?;
+let reports = cosm_orc.gas_profiler_report();
 ```
 
 ### Gas Report Github Action

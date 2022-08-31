@@ -14,9 +14,6 @@ pub enum StoreError {
     #[error("wasm contract file name was not valid utf8 or malformed")]
     InvalidWasmFileName,
 
-    #[error("error instrumenting message")]
-    Instrument { msg: String }, // TODO: return an actual base error
-
     #[error(transparent)]
     ClientError(#[from] ClientError),
 
@@ -32,19 +29,12 @@ impl StoreError {
     pub fn wasmfile(e: std::io::Error) -> StoreError {
         StoreError::WasmFileRead { source: e }
     }
-
-    pub fn instrument(e: Box<dyn std::error::Error>) -> StoreError {
-        StoreError::Instrument { msg: e.to_string() }
-    }
 }
 
 #[derive(Error, Debug)]
 pub enum ProcessError {
     #[error("serde json serialization error")]
     JsonSerialize { source: serde_json::Error },
-
-    #[error("error instrumenting message")]
-    Instrument { msg: String },
 
     #[error(transparent)]
     ContractMapError(#[from] ContractMapError),
@@ -60,16 +50,6 @@ impl ProcessError {
     pub fn json(e: serde_json::Error) -> ProcessError {
         ProcessError::JsonSerialize { source: e }
     }
-
-    pub fn instrument(e: Box<dyn std::error::Error>) -> ProcessError {
-        ProcessError::Instrument { msg: e.to_string() }
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum ReportError {
-    #[error("error generating report")]
-    ReportError { source: Box<dyn std::error::Error> },
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]

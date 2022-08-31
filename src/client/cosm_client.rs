@@ -30,17 +30,19 @@ use std::time::Duration;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 use tokio::time;
 
+#[cfg_attr(test, faux::create)]
+#[derive(Clone, Debug)]
 pub struct CosmClient {
     // http tendermint RPC client
     rpc_client: HttpClient,
     cfg: ChainCfg,
 }
 
-#[cfg(test)]
-use mockall::automock;
-
-#[cfg_attr(test, automock)]
+#[cfg_attr(test, faux::methods)]
 impl CosmClient {
+    // HACK: faux doesn't support mocking a struct wrapped in a Result
+    // so we are just ignoring the constructor for this crate's tests
+    #[cfg(not(test))]
     pub fn new(cfg: ChainCfg) -> Result<Self, ClientError> {
         Ok(Self {
             rpc_client: HttpClient::new(cfg.rpc_endpoint.as_str())?,

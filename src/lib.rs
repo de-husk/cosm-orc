@@ -29,7 +29,7 @@
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //!  // juno_local.yaml has the `cw20_base` code_id already stored
 //!  // If the smart contract has not been stored on the chain yet use: `cosm_orc::store_contracts()`
-//!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+//!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?, false)?;
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
 //!      key: Key::Mnemonic("word1 word2 ...".to_string()),
@@ -51,7 +51,6 @@
 //!      
 //!  let res = cosm_orc.query(
 //!      "cw20_base",
-//!      "meme_token_test",
 //!      &QueryMsg::TokenInfo {},
 //!  )?;
 //!      
@@ -74,7 +73,7 @@
 //! # use cosm_orc::config::key::Key;
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?)?;
+//!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?, false)?;
 //!
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
@@ -103,7 +102,6 @@
 //!      
 //!  let res = cosm_orc.query(
 //!      "cw20_base",
-//!      "meme_token_test",
 //!      &QueryMsg::TokenInfo {},
 //!  )?;
 //!
@@ -118,14 +116,12 @@
 //! # use cosm_orc::{
 //! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::CosmOrc,
-//! #    profilers::gas_profiler::GasProfiler,
 //! # };
 //! # use cosm_orc::config::key::SigningKey;
 //! # use cosm_orc::config::key::Key;
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 //! # fn main() -> Result<(), Box<dyn Error>> {
-//!  let mut cosm_orc =
-//!      CosmOrc::new(Config::from_yaml("config.yaml")?)?.add_profiler(Box::new(GasProfiler::new()));
+//!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("config.yaml")?, true)?;
 //!
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
@@ -146,7 +142,7 @@
 //!      &key,
 //!  )?;
 //!
-//!  let reports = cosm_orc.profiler_reports()?;
+//!  let reports = cosm_orc.gas_profiler_report();
 //!
 //! #  Ok(())
 //! # }
@@ -154,8 +150,6 @@
 //!
 
 pub mod orchestrator;
-
-pub mod profilers;
 
 pub mod config;
 

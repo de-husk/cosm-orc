@@ -5,12 +5,12 @@ use super::error::ContractMapError;
 
 pub type ContractName = String;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContractMap {
     map: HashMap<ContractName, DeployInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeployInfo {
     pub code_id: u64,
     pub address: Option<String>,
