@@ -9,6 +9,8 @@ chain_cfg:
   gas_adjustment: 1.5
 
 # optional list of pre-stored code_ids:
-code_ids:
-  "cw20_base": "1"
-  "cw4_group": "2"
+contract_deploy_info:
+  cw20_base:
+    code_id: 1
+  cw4_group:
+    code_id: 2

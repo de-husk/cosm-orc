@@ -50,7 +50,7 @@ impl CosmOrc {
         };
 
         Ok(Self {
-            contract_map: ContractMap::new(&cfg.code_ids),
+            contract_map: ContractMap::new(cfg.contract_deploy_info),
             client: CosmClient::new(cfg.chain_cfg)?,
             gas_profiler,
         })
@@ -281,6 +281,7 @@ impl CosmOrc {
 mod tests {
     use super::CosmOrc;
     use crate::client::cosm_client::CosmClient;
+    use crate::orchestrator::deploy::DeployInfo;
     use crate::orchestrator::gas_profiler::GasProfiler;
     use crate::{
         client::{
@@ -311,7 +312,7 @@ mod tests {
         };
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
@@ -335,7 +336,13 @@ mod tests {
 
     #[test]
     fn instantiate_cosmossdk_error() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -359,7 +366,7 @@ mod tests {
         });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -383,7 +390,13 @@ mod tests {
 
     #[test]
     fn instantiate() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -408,7 +421,7 @@ mod tests {
         });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -440,7 +453,13 @@ mod tests {
 
     #[test]
     fn instantiate_with_profiler() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -465,7 +484,7 @@ mod tests {
         });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: Some(GasProfiler::new()),
         };
@@ -514,7 +533,7 @@ mod tests {
         };
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
@@ -538,14 +557,20 @@ mod tests {
 
     #[test]
     fn execute_not_initialized() {
-        let code_ids = HashMap::from([("cw_not_init".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_not_init".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
         };
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
@@ -576,7 +601,13 @@ mod tests {
 
     #[test]
     fn execute_cosmossdk_error() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -616,7 +647,7 @@ mod tests {
             });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -655,7 +686,13 @@ mod tests {
 
     #[test]
     fn execute() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -695,7 +732,7 @@ mod tests {
             });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -735,7 +772,13 @@ mod tests {
 
     #[test]
     fn execute_with_profiler() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -775,7 +818,7 @@ mod tests {
             });
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: Some(GasProfiler::new()),
         };
@@ -837,7 +880,7 @@ mod tests {
     #[test]
     fn query_not_stored() {
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&HashMap::new()),
+            contract_map: ContractMap::new(HashMap::new()),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
@@ -861,10 +904,16 @@ mod tests {
 
     #[test]
     fn query_not_initialized() {
-        let code_ids = HashMap::from([("cw_not_init".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_not_init".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
@@ -895,7 +944,13 @@ mod tests {
 
     #[test]
     fn query_cosmossdk_error() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -936,7 +991,7 @@ mod tests {
         );
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -975,7 +1030,13 @@ mod tests {
 
     #[test]
     fn query() {
-        let code_ids = HashMap::from([("cw_test".to_string(), 1337)]);
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: 1337,
+                address: None,
+            },
+        )]);
         let key = SigningKey {
             name: "test".to_string(),
             key: Key::Mnemonic("word1 word2".to_string()),
@@ -1016,7 +1077,7 @@ mod tests {
         );
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: mock_client,
             gas_profiler: None,
         };
@@ -1063,7 +1124,7 @@ mod tests {
         };
 
         let mut cosm_orc = CosmOrc {
-            contract_map: ContractMap::new(&code_ids),
+            contract_map: ContractMap::new(code_ids),
             client: CosmClient::faux(),
             gas_profiler: None,
         };
