@@ -7,7 +7,7 @@ use std::fs;
 use std::panic::Location;
 use std::path::Path;
 use std::time::Duration;
-use tokio::time::timeout;
+use tokio::time::timeout as _timeout;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
 use crate::client::cosm_client::CosmClient;
@@ -250,13 +250,20 @@ impl CosmOrc {
     }
 
     /// Blocks the current thread until `n` blocks have been processed.
-    ///
-    /// Throws `PollBlockError` once `timeout_ms` milliseconds have elapsed.
-    pub fn poll_for_n_blocks(&self, n: u64, timeout_ms: u64) -> Result<(), PollBlockError> {
+    /// # Arguments
+    /// * `n` - Wait for this number of blocks to process
+    /// * `timeout` - Throws `PollBlockError` once `timeout` has elapsed.
+    /// * `is_first_block` - Set to true if waiting for the first block to process for new test nodes.
+    pub fn poll_for_n_blocks<T: Into<Duration> + Send>(
+        &self,
+        n: u64,
+        timeout: T,
+        is_first_block: bool,
+    ) -> Result<(), PollBlockError> {
         tokio_block(async {
-            timeout(
-                Duration::from_millis(timeout_ms),
-                self.client.poll_for_n_blocks(n),
+            _timeout(
+                timeout.into(),
+                self.client.poll_for_n_blocks(n, is_first_block),
             )
             .await
         })??;

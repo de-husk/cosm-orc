@@ -64,7 +64,9 @@ pub enum ContractMapError {
 #[derive(Error, Debug)]
 pub enum OptimizeError {
     #[error("error running optimizoor")]
-    Optimize { source: Box<dyn std::error::Error> },
+    Optimize {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 #[derive(Error, Debug)]

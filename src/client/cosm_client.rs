@@ -170,7 +170,20 @@ impl CosmClient {
         Ok(QueryResponse { res: res.into() })
     }
 
-    pub async fn poll_for_n_blocks(&self, n: u64) -> Result<(), ClientError> {
+    pub async fn poll_for_n_blocks(&self, n: u64, is_first_block: bool) -> Result<(), ClientError> {
+        if is_first_block {
+            self.rpc_client
+                .wait_until_healthy(Duration::from_secs(5))
+                .await?;
+
+            while let Err(e) = self.rpc_client.latest_block().await {
+                if !matches!(e.detail(), cosmrs::rpc::error::ErrorDetail::Serde(_)) {
+                    return Err(e.into());
+                }
+                time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+
         let mut curr_height: u64 = self
             .rpc_client
             .latest_block()
