@@ -17,19 +17,11 @@ pub struct DeployInfo {
 }
 
 impl ContractMap {
-    /// Creates a new ContractMap from a given map of ContractName -> CodeIDs
-    pub fn new(code_map: &HashMap<String, u64>) -> Self {
-        let mut map = HashMap::new();
-        for (name, code_id) in code_map {
-            map.insert(
-                name.clone(),
-                DeployInfo {
-                    code_id: *code_id,
-                    address: None,
-                },
-            );
+    /// Creates a new ContractMap from an existing configured ContractMap
+    pub fn new(contract_deploys: HashMap<ContractName, DeployInfo>) -> Self {
+        Self {
+            map: contract_deploys,
         }
-        Self { map }
     }
 
     /// Registers a new code id and contract name with the contract map
