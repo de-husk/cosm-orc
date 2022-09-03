@@ -47,6 +47,8 @@
 //!          marketing: None,
 //!      },
 //!      &key,
+//!      None,
+//!      vec![]
 //!  )?;
 //!      
 //!  let res = cosm_orc.query(
@@ -84,7 +86,7 @@
 //!  //
 //!  // NOTE: currently cosm-orc is expecting a wasm filed called: `cw20_base.wasm`
 //!  // to be in `/artifacts`, since `cw20_base` is used as the contract name in process_msgs() call below
-//!  cosm_orc.store_contracts("./artifacts", &key)?;
+//!  cosm_orc.store_contracts("./artifacts", &key, None)?;
 //!
 //!  cosm_orc.instantiate(
 //!      "cw20_base",
@@ -98,6 +100,8 @@
 //!          marketing: None,
 //!      },
 //!      &key,
+//!      None,
+//!      vec![]
 //!  )?;
 //!      
 //!  let res = cosm_orc.query(
@@ -140,6 +144,8 @@
 //!          marketing: None,
 //!      },
 //!      &key,
+//!      None,
+//!      vec![]
 //!  )?;
 //!
 //!  let reports = cosm_orc.gas_profiler_report();

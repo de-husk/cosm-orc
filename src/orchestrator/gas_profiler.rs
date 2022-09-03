@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::panic::Location;
 
-use crate::client::cosm_client::ChainResponse;
+use crate::client::chain_res::ChainResponse;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum CommandType {

@@ -1,7 +1,8 @@
 pub mod error;
 
-#[allow(dead_code)]
-pub(crate) mod cosm_client;
+pub(crate) mod cosmos;
 
-pub use self::cosm_client::ChainResponse;
+pub(crate) mod cosmwasm;
+
+pub mod chain_res;
 pub use cosmrs::tendermint::abci::Code;
