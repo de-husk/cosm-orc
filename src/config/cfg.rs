@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::error::ConfigError;
-use crate::orchestrator::deploy::DeployInfo;
+use crate::{client::error::ClientError, orchestrator::deploy::DeployInfo};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
     pub chain_cfg: ChainCfg,
     // used to configure already stored contract code_id and deployed addresses
@@ -13,7 +13,7 @@ pub struct Config {
     pub contract_deploy_info: HashMap<String, DeployInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChainCfg {
     pub denom: String,
     pub prefix: String,
@@ -31,5 +31,24 @@ impl Config {
             .build()?;
 
         Ok(settings.try_deserialize::<Config>()?)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+pub struct Coin {
+    pub denom: String,
+    pub amount: u64,
+}
+
+impl TryFrom<Coin> for cosmrs::Coin {
+    type Error = ClientError;
+
+    fn try_from(value: Coin) -> Result<Self, ClientError> {
+        Ok(Self {
+            denom: value.denom.parse().map_err(|_| ClientError::Denom {
+                name: value.denom.clone(),
+            })?,
+            amount: value.amount.into(),
+        })
     }
 }

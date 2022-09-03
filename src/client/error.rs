@@ -2,7 +2,7 @@ use cosmrs::ErrorReport;
 use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
-use super::cosm_client::ChainResponse;
+use super::chain_res::ChainResponse;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
@@ -26,6 +26,12 @@ pub enum ClientError {
 
     #[error("invalid derivation path")]
     DerviationPath,
+
+    #[error("invalid admin address")]
+    AdminAddress,
+
+    #[error("invalid instantiate permissions")]
+    InstantiatePerms { source: ErrorReport },
 
     #[error("proto encoding error")]
     ProtoEncoding { source: ErrorReport },
