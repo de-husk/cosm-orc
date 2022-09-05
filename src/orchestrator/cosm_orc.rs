@@ -251,7 +251,7 @@ impl CosmOrc {
     /// * If `contract_name` has not been instantiated via [Self::instantiate()]
     ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
     #[track_caller]
-    pub fn query<S, T>(&mut self, contract_name: S, msg: &T) -> Result<ChainResponse, ProcessError>
+    pub fn query<S, T>(&self, contract_name: S, msg: &T) -> Result<ChainResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -263,6 +263,52 @@ impl CosmOrc {
         let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
 
         let res = tokio_block(async { self.client.query(addr, payload).await })?;
+
+        debug!("{:?}", res.res);
+
+        Ok(res.res)
+    }
+
+    /// Migrates a smart contract deployed at `contract_name` to `new_code_id`
+    ///
+    /// # Arguments
+    /// * `contract_name` - Deployed smart contract name that we will migrate.
+    /// * `new_code_id` - New code id that we will migrate `contract_name` to.
+    /// * `msg` - MigrateMsg that `contract_name` supports.
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    /// * `key` - SigningKey used to sign the tx.
+    #[track_caller]
+    pub fn migrate<S, T>(
+        &mut self,
+        contract_name: S,
+        new_code_id: u64,
+        op_name: S,
+        msg: &T,
+        key: &SigningKey,
+    ) -> Result<ChainResponse, ProcessError>
+    where
+        S: Into<String>,
+        T: Serialize,
+    {
+        let contract_name = contract_name.into();
+        let op_name = op_name.into();
+
+        let addr = self.contract_map.address(&contract_name)?;
+
+        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
+
+        let res =
+            tokio_block(async { self.client.migrate(addr, new_code_id, payload, key).await })?;
+
+        if let Some(p) = &mut self.gas_profiler {
+            p.instrument(
+                contract_name,
+                op_name,
+                CommandType::Migrate,
+                &res.res,
+                Location::caller(),
+            );
+        }
 
         debug!("{:?}", res.res);
 
@@ -931,7 +977,7 @@ mod tests {
 
     #[test]
     fn query_not_stored() {
-        let mut cosm_orc = CosmOrc {
+        let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(HashMap::new()),
             client: CosmWasmClient::faux(),
             gas_profiler: None,
@@ -964,7 +1010,7 @@ mod tests {
             },
         )]);
 
-        let mut cosm_orc = CosmOrc {
+        let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
             client: CosmWasmClient::faux(),
             gas_profiler: None,
