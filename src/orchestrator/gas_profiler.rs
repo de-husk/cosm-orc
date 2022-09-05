@@ -10,6 +10,7 @@ pub enum CommandType {
     Instantiate,
     Query,
     Execute,
+    Migrate,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

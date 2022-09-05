@@ -1,7 +1,7 @@
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     QuerySmartContractStateRequest, QuerySmartContractStateResponse,
 };
-use cosmrs::cosmwasm::{MsgExecuteContract, MsgInstantiateContract};
+use cosmrs::cosmwasm::{MsgExecuteContract, MsgInstantiateContract, MsgMigrateContract};
 use cosmrs::crypto::secp256k1;
 use cosmrs::rpc::Client;
 use cosmrs::tendermint::abci::tag::Key;
@@ -179,6 +179,32 @@ impl CosmWasmClient {
         Ok(QueryResponse { res: res.into() })
     }
 
+    pub async fn migrate(
+        &self,
+        address: String,
+        new_code_id: u64,
+        payload: Vec<u8>,
+        key: &SigningKey,
+    ) -> Result<MigrateResponse, ClientError> {
+        let signing_key: secp256k1::SigningKey = key.try_into()?;
+        let account_id = key.to_account(&self.cfg.prefix)?;
+
+        let msg = MsgMigrateContract {
+            sender: account_id.clone(),
+            contract: address.parse().unwrap(),
+            code_id: new_code_id,
+            msg: payload,
+        }
+        .to_any()
+        .map_err(ClientError::proto_encoding)?;
+
+        let tx_res = send_tx(&self.rpc_client, msg, &signing_key, account_id, &self.cfg).await?;
+
+        Ok(MigrateResponse {
+            res: tx_res.deliver_tx.into(),
+        })
+    }
+
     pub async fn poll_for_n_blocks(&self, n: u64, is_first_block: bool) -> Result<(), ClientError> {
         if is_first_block {
             self.rpc_client
@@ -239,5 +265,10 @@ pub struct ExecResponse {
 
 #[derive(Clone, Debug)]
 pub struct QueryResponse {
+    pub res: ChainResponse,
+}
+
+#[derive(Clone, Debug)]
+pub struct MigrateResponse {
     pub res: ChainResponse,
 }
