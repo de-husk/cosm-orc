@@ -32,7 +32,7 @@ cosmos-sdk-proto = "0.12.0"
 tendermint-rpc = { version = "0.23.7", features= ["http"], default-features=false }
 tokio = { version = "1.20.1", features = ["time"] }
 tonic = { version = "0.7.0", default-features=false }
-prost = "0.10.4"
+prost = { version = "0.10.4", default-features=false }
 
 [dev-dependencies]
 assert_matches = "1.5"
