@@ -47,7 +47,7 @@ pub struct ConfigInput {
 
 impl ConfigInput {
     pub fn to_chain_cfg(self) -> Result<ChainCfg, ConfigError> {
-        return tokio_block(self.to_chain_cfg_async());
+        tokio_block(self.to_chain_cfg_async())
     }
 
     /// Converts a ConfigInput into a ChainCfg
