@@ -1,5 +1,5 @@
+use cosmos_sdk_proto::prost::{DecodeError, EncodeError};
 use cosmrs::ErrorReport;
-use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
 use super::chain_res::ChainResponse;

@@ -25,18 +25,14 @@ config = { version = "0.13.1", features = ["yaml"] }
 cw-optimizoor = { version = "0.7.1", optional = true }
 chain-registry = { version = "0.2.0-rc3", default-features=false }
 
-# TODO: Upgrade to the latest version of cosmrs/cosmos-sdk-proto once
-# cw20 / cw20-base are upgraded to a newer version of `signature` crate to fix the dependency collision error
-
-cosmrs = { version = "0.7.1", features = ["rpc", "cosmwasm"] }
-cosmos-sdk-proto = "0.12.0"
-tendermint-rpc = { version = "0.23.7", features= ["http"], default-features=false }
+cosmrs = { version = "0.9.0", features = ["rpc", "cosmwasm"] }
+cosmos-sdk-proto = "0.14.0"
+tendermint-rpc = { version = "0.23.9", features= ["http"], default-features=false }
 tokio = { version = "1.20.1", features = ["time"] }
-tonic = { version = "0.7.0", default-features=false }
-prost = { version = "0.10.4", default-features=false }
+tonic = { version = "0.8.0", default-features=false }
 
 [dev-dependencies]
 assert_matches = "1.5"
-cw20-base = "0.13"
-cw20 = "0.13"
+cw20-base = "0.15"
+cw20 = "0.15"
 faux = "0.1.7"
