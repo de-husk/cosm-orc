@@ -15,6 +15,7 @@ use crate::{
 pub struct Config {
     pub chain_cfg: ChainCfg,
     // used to configure already stored contract code_id and deployed addresses
+    #[serde(default)]
     pub contract_deploy_info: HashMap<String, DeployInfo>,
 }
 
@@ -63,14 +64,14 @@ impl ConfigInput {
                         chain_id: chain_id.clone(),
                     })?;
 
-                let fee_token = chain
-                    .fees
-                    .fee_tokens
-                    .get(0)
-                    .ok_or_else(|| ConfigError::MissingFee {
-                        chain_id: chain_id.clone(),
-                    })?
-                    .clone();
+                let fee_token =
+                    chain
+                        .fees
+                        .fee_tokens
+                        .get(0)
+                        .ok_or_else(|| ConfigError::MissingFee {
+                            chain_id: chain_id.clone(),
+                        })?;
 
                 let rpc_endpoint =
                     chain
@@ -91,7 +92,7 @@ impl ConfigInput {
                         })?;
 
                 ChainCfg {
-                    denom: fee_token.denom,
+                    denom: fee_token.denom.clone(),
                     prefix: chain.bech32_prefix,
                     chain_id: chain.chain_id,
                     rpc_endpoint: rpc_endpoint.address.clone(),
