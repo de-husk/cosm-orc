@@ -18,6 +18,15 @@ pub struct Config {
     pub contract_deploy_info: HashMap<String, DeployInfo>,
 }
 
+impl Config {
+    pub fn from_config_input(cfg_input: ConfigInput) -> Result<Self, ConfigError> {
+        Ok(Self {
+            contract_deploy_info: cfg_input.contract_deploy_info.clone(),
+            chain_cfg: cfg_input.to_chain_cfg()?,
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ChainCfg {
     pub denom: String,
@@ -36,29 +45,14 @@ pub struct ConfigInput {
     pub contract_deploy_info: HashMap<String, DeployInfo>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ChainConfig {
-    /// Allows you to manually configure any cosmos based chain
-    Custom(ChainCfg),
-    /// Uses the cosmos chain registry to auto-populate ChainCfg based on given chain_id string
-    ChainRegistry(String),
-}
-
-impl Config {
-    /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
-    pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
-        return tokio_block(Self::from_yaml_async(file));
+impl ConfigInput {
+    pub fn to_chain_cfg(self) -> Result<ChainCfg, ConfigError> {
+        return tokio_block(self.to_chain_cfg_async());
     }
 
-    /// Async version of [Self::from_yaml()]
-    pub async fn from_yaml_async(file: &str) -> Result<Config, ConfigError> {
-        let settings = _Config::builder()
-            .add_source(config::File::with_name(file))
-            .build()?;
-        let cfg = settings.try_deserialize::<ConfigInput>()?;
-
-        let mut chain_cfg = match cfg.chain_cfg {
+    /// Converts a ConfigInput into a ChainCfg
+    pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
+        let chain_cfg = match self.chain_cfg {
             ChainConfig::Custom(chain_cfg) => chain_cfg,
             ChainConfig::ChainRegistry(chain_id) => {
                 // get ChainCfg from Chain Registry API:
@@ -109,13 +103,42 @@ impl Config {
             }
         };
 
+        Ok(chain_cfg)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ChainConfig {
+    /// Allows you to manually configure any cosmos based chain
+    Custom(ChainCfg),
+    /// Uses the cosmos chain registry to auto-populate ChainCfg based on given chain_id string
+    ChainRegistry(String),
+}
+
+impl Config {
+    /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
+    pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
+        return tokio_block(Self::from_yaml_async(file));
+    }
+
+    /// Async version of [Self::from_yaml()]
+    pub async fn from_yaml_async(file: &str) -> Result<Config, ConfigError> {
+        let settings = _Config::builder()
+            .add_source(config::File::with_name(file))
+            .build()?;
+        let cfg = settings.try_deserialize::<ConfigInput>()?;
+
+        let contract_deploy_info = cfg.contract_deploy_info.clone();
+        let mut chain_cfg = cfg.to_chain_cfg_async().await?;
+
         // parse and optionally fix scheme for configured api endpoints:
         chain_cfg.rpc_endpoint = parse_url(&chain_cfg.rpc_endpoint)?;
         chain_cfg.grpc_endpoint = parse_url(&chain_cfg.grpc_endpoint)?;
 
         Ok(Config {
             chain_cfg,
-            contract_deploy_info: cfg.contract_deploy_info.clone(),
+            contract_deploy_info,
         })
     }
 }

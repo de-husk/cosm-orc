@@ -23,12 +23,7 @@ serde_json = "1.0"
 log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
 cw-optimizoor = { version = "0.7.1", optional = true }
-
-# NOTE: chain-registry doesn't currently have crate versions, so we are using a git dependency until that changes:
-#
-# TODO: change rev to latest once my PR merges: https://github.com/PeggyJV/chain-registry/pull/1 and then this will build
-#
-chain-registry = { git = "https://github.com/peggyjv/chain-registry", rev = "127c4a2a2b48c4aa9f925239b1df5f5937712461", default-features=false }
+chain-registry = { version = "0.2.0-rc1", default-features=false }
 
 # TODO: Upgrade to the latest version of cosmrs/cosmos-sdk-proto once
 # cw20 / cw20-base are upgraded to a newer version of `signature` crate to fix the dependency collision error
