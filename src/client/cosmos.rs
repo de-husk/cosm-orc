@@ -6,6 +6,7 @@ use cosmos_sdk_proto::cosmos::auth::v1beta1::{
 };
 use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::SimulateRequest;
+use cosmos_sdk_proto::traits::Message;
 use cosmrs::crypto::secp256k1;
 use cosmrs::rpc::endpoint::broadcast::tx_commit::Response;
 use cosmrs::rpc::Client;
@@ -16,7 +17,6 @@ use cosmrs::{
     tx::{self},
 };
 use cosmrs::{AccountId, Any, Coin, Denom};
-use prost::Message;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 
 pub async fn send_tx(

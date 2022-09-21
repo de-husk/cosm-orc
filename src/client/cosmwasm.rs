@@ -1,13 +1,13 @@
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
     QuerySmartContractStateRequest, QuerySmartContractStateResponse,
 };
+use cosmos_sdk_proto::traits::Message;
 use cosmrs::cosmwasm::{MsgExecuteContract, MsgInstantiateContract, MsgMigrateContract};
 use cosmrs::crypto::secp256k1;
 use cosmrs::rpc::Client;
 use cosmrs::tendermint::abci::tag::Key;
 use cosmrs::tx::Msg;
 use cosmrs::{cosmwasm::MsgStoreCode, rpc::HttpClient};
-use prost::Message;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time;
