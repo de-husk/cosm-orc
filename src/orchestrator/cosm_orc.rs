@@ -345,7 +345,7 @@ impl CosmOrc {
     }
 }
 
-fn tokio_block<F: Future>(f: F) -> F::Output {
+pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
