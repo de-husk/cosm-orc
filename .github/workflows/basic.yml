@@ -21,12 +21,14 @@ jobs:
         with:
           toolchain: nightly
           command: build
+          args: --all-features
 
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           toolchain: nightly
           command: test
+          args: --all-features
         env:
           RUST_BACKTRACE: 1
 
@@ -56,4 +58,4 @@ jobs:
         with:
           toolchain: nightly
           command: clippy
-          args: --all-targets -- -D warnings
+          args: --all-features --all-targets -- -D warnings
