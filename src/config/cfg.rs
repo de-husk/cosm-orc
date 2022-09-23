@@ -52,9 +52,12 @@ impl ConfigInput {
     }
 
     /// Converts a ConfigInput into a ChainCfg
+    #[allow(clippy::infallible_destructuring_match)]
     pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
         let chain_cfg = match self.chain_cfg {
             ChainConfig::Custom(chain_cfg) => chain_cfg,
+
+            #[cfg(feature = "chain-reg")]
             ChainConfig::ChainRegistry(chain_id) => {
                 // get ChainCfg from Chain Registry API:
                 let chain = chain_registry::get::get_chain(&chain_id)
@@ -114,6 +117,8 @@ pub enum ChainConfig {
     /// Allows you to manually configure any cosmos based chain
     Custom(ChainCfg),
     /// Uses the cosmos chain registry to auto-populate ChainCfg based on given chain_id string
+    /// Enable `chain-reg` feature to use.
+    #[cfg(feature = "chain-reg")]
     ChainRegistry(String),
 }
 
