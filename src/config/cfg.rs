@@ -52,6 +52,7 @@ impl ConfigInput {
     }
 
     /// Converts a ConfigInput into a ChainCfg
+    #[allow(clippy::infallible_destructuring_match)]
     pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
         let chain_cfg = match self.chain_cfg {
             ChainConfig::Custom(chain_cfg) => chain_cfg,
