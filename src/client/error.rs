@@ -6,6 +6,7 @@ use super::chain_res::ChainResponse;
 
 #[derive(Error, Debug)]
 pub enum ClientError {
+    // TODO: Re-export these errors external to my crate since Im exposing them to the public
     #[error("malformed rpc url")]
     InvalidURL { source: tendermint_rpc::Error },
 
@@ -41,6 +42,9 @@ pub enum ClientError {
 
     #[error("CosmosSDK error: {res:?}")]
     CosmosSdk { res: ChainResponse },
+
+    #[error(transparent)]
+    Keyring(#[from] keyring::Error),
 
     #[error(transparent)]
     GRPC(#[from] tonic::transport::Error),

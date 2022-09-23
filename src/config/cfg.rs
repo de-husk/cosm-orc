@@ -55,7 +55,21 @@ impl ConfigInput {
     #[allow(clippy::infallible_destructuring_match)]
     pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
         let chain_cfg = match self.chain_cfg {
-            ChainConfig::Custom(chain_cfg) => chain_cfg,
+            ChainConfig::Custom(chain_cfg) => {
+                // parse and optionally fix scheme for configured api endpoints:
+                let rpc_endpoint = parse_url(&chain_cfg.rpc_endpoint)?;
+                let grpc_endpoint = parse_url(&chain_cfg.grpc_endpoint)?;
+
+                ChainCfg {
+                    denom: chain_cfg.denom,
+                    prefix: chain_cfg.prefix,
+                    chain_id: chain_cfg.chain_id,
+                    gas_prices: chain_cfg.gas_prices,
+                    gas_adjustment: chain_cfg.gas_adjustment,
+                    rpc_endpoint,
+                    grpc_endpoint,
+                }
+            }
 
             #[cfg(feature = "chain-reg")]
             ChainConfig::ChainRegistry(chain_id) => {
@@ -76,33 +90,40 @@ impl ConfigInput {
                             chain_id: chain_id.clone(),
                         })?;
 
-                let rpc_endpoint =
-                    chain
-                        .apis
-                        .rpc
-                        .get(0)
-                        .ok_or_else(|| ConfigError::MissingRPC {
-                            chain_id: chain_id.clone(),
-                        })?;
+                // TODO: I should round-robin the rpcs/grpcs randomly since it's a static list
+                let mut rpc_endpoint = chain
+                    .apis
+                    .rpc
+                    .get(0)
+                    .ok_or_else(|| ConfigError::MissingRPC {
+                        chain_id: chain_id.clone(),
+                    })?
+                    .address
+                    .clone();
 
-                let grpc_endpoint =
-                    chain
-                        .apis
-                        .grpc
-                        .get(0)
-                        .ok_or_else(|| ConfigError::MissingGRPC {
-                            chain_id: chain_id.clone(),
-                        })?;
+                let mut grpc_endpoint = chain
+                    .apis
+                    .grpc
+                    .get(0)
+                    .ok_or_else(|| ConfigError::MissingGRPC {
+                        chain_id: chain_id.clone(),
+                    })?
+                    .address
+                    .clone();
+
+                // parse and optionally fix scheme for configured api endpoints:
+                rpc_endpoint = parse_url(&rpc_endpoint)?;
+                grpc_endpoint = parse_url(&grpc_endpoint)?;
 
                 ChainCfg {
                     denom: fee_token.denom.clone(),
                     prefix: chain.bech32_prefix,
                     chain_id: chain.chain_id,
-                    rpc_endpoint: rpc_endpoint.address.clone(),
-                    grpc_endpoint: grpc_endpoint.address.clone(),
                     gas_prices: fee_token.average_gas_price.into(),
                     // TODO: We should probably let the user configure `gas_adjustment` for this path as well
                     gas_adjustment: 1.5,
+                    rpc_endpoint,
+                    grpc_endpoint,
                 }
             }
         };
@@ -136,11 +157,7 @@ impl Config {
         let cfg = settings.try_deserialize::<ConfigInput>()?;
 
         let contract_deploy_info = cfg.contract_deploy_info.clone();
-        let mut chain_cfg = cfg.to_chain_cfg_async().await?;
-
-        // parse and optionally fix scheme for configured api endpoints:
-        chain_cfg.rpc_endpoint = parse_url(&chain_cfg.rpc_endpoint)?;
-        chain_cfg.grpc_endpoint = parse_url(&chain_cfg.grpc_endpoint)?;
+        let chain_cfg = cfg.to_chain_cfg_async().await?;
 
         Ok(Config {
             chain_cfg,
