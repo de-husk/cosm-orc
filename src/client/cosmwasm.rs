@@ -8,13 +8,14 @@ use cosmrs::rpc::Client;
 use cosmrs::tendermint::abci::tag::Key;
 use cosmrs::tx::Msg;
 use cosmrs::{cosmwasm::MsgStoreCode, rpc::HttpClient};
+use serde::Deserialize;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time;
 
 use super::chain_res::ChainResponse;
 use super::cosmos::{abci_query, find_event, send_tx};
-use super::error::ClientError;
+use super::error::{ClientError, DeserializeError};
 use crate::config::cfg::{ChainCfg, Coin};
 use crate::config::key::SigningKey;
 use crate::orchestrator::AccessConfig;
@@ -75,6 +76,8 @@ impl CosmWasmClient {
 
         Ok(StoreCodeResponse {
             code_id,
+            tx_hash: tx_res.hash.to_string(),
+            height: tx_res.height.into(),
             res: tx_res.deliver_tx.into(),
         })
     }
@@ -123,6 +126,8 @@ impl CosmWasmClient {
 
         Ok(InstantiateResponse {
             address: addr,
+            tx_hash: tx_res.hash.to_string(),
+            height: tx_res.height.into(),
             res: tx_res.deliver_tx.into(),
         })
     }
@@ -154,6 +159,8 @@ impl CosmWasmClient {
         let tx_res = send_tx(&self.rpc_client, msg, &signing_key, account_id, &self.cfg).await?;
 
         Ok(ExecResponse {
+            tx_hash: tx_res.hash.to_string(),
+            height: tx_res.height.into(),
             res: tx_res.deliver_tx.into(),
         })
     }
@@ -201,6 +208,8 @@ impl CosmWasmClient {
         let tx_res = send_tx(&self.rpc_client, msg, &signing_key, account_id, &self.cfg).await?;
 
         Ok(MigrateResponse {
+            tx_hash: tx_res.hash.to_string(),
+            height: tx_res.height.into(),
             res: tx_res.deliver_tx.into(),
         })
     }
@@ -250,25 +259,59 @@ impl CosmWasmClient {
 pub struct StoreCodeResponse {
     pub code_id: u64,
     pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl StoreCodeResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct InstantiateResponse {
     pub address: String,
     pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl InstantiateResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct ExecResponse {
     pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl ExecResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct QueryResponse {
     pub res: ChainResponse,
 }
+impl QueryResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct MigrateResponse {
     pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl MigrateResponse {
+    #[allow(dead_code)]
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
 }
