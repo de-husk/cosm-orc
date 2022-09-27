@@ -32,7 +32,7 @@ pub enum Key {
     /// DO NOT USE FOR MAINNET
     Mnemonic(String),
 
-    // TODO: Add Keyring CRUD operations
+    // TODO: Add Keyring password CRUD operations
     /// Use OS Keyring to access private key.
     /// Safe for testnet / mainnet.
     Keyring(KeyringParams),

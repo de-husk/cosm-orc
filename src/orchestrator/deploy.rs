@@ -12,7 +12,7 @@ pub struct ContractMap {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeployInfo {
-    pub code_id: u64,
+    pub code_id: Option<u64>,
     pub address: Option<String>,
 }
 
@@ -26,13 +26,13 @@ impl ContractMap {
 
     /// Registers a new code id and contract name with the contract map
     pub fn register_contract<S: Into<String>>(&mut self, name: S, code_id: u64) {
-        self.map.insert(
-            name.into(),
-            DeployInfo {
-                code_id,
+        self.map
+            .entry(name.into())
+            .or_insert(DeployInfo {
+                code_id: None,
                 address: None,
-            },
-        );
+            })
+            .code_id = Some(code_id);
     }
 
     /// Returns the stored code id for a given contract name
@@ -41,7 +41,12 @@ impl ContractMap {
             .map
             .get(name)
             .ok_or(ContractMapError::NotStored { name: name.into() })?;
-        Ok(info.code_id)
+
+        let code_id = info
+            .code_id
+            .ok_or(ContractMapError::NotStored { name: name.into() })?;
+
+        Ok(code_id)
     }
 
     /// Returns the stored contract address for a given contract name
@@ -61,8 +66,11 @@ impl ContractMap {
         address: S,
     ) -> Result<(), ContractMapError> {
         self.map
-            .get_mut(name)
-            .ok_or(ContractMapError::NotStored { name: name.into() })?
+            .entry(name.into())
+            .or_insert(DeployInfo {
+                code_id: None,
+                address: None,
+            })
             .address = Some(address.into());
         Ok(())
     }
@@ -70,5 +78,54 @@ impl ContractMap {
     /// Returns current deploy info
     pub fn deploy_info(&self) -> &HashMap<String, DeployInfo> {
         &self.map
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::orchestrator::error::ContractMapError;
+
+    use super::ContractMap;
+    use std::collections::HashMap;
+
+    #[test]
+    fn can_register_new_code_id() {
+        let mut map = ContractMap::new(HashMap::new());
+
+        assert_eq!(
+            map.code_id("cw-test").unwrap_err(),
+            ContractMapError::NotStored {
+                name: "cw-test".to_string()
+            }
+        );
+
+        map.register_contract("cw-test", 1337);
+        assert_eq!(map.code_id("cw-test").unwrap(), 1337);
+    }
+
+    #[test]
+    fn can_register_addr_without_storing() {
+        let mut map = ContractMap::new(HashMap::new());
+        assert_eq!(
+            map.address("cw-test").unwrap_err(),
+            ContractMapError::NotStored {
+                name: "cw-test".to_string()
+            }
+        );
+
+        map.add_address("cw-test", "addr1").unwrap();
+        assert_eq!(map.address("cw-test").unwrap(), "addr1");
+
+        // Can register code id after registering address:
+        assert_eq!(
+            map.code_id("cw-test").unwrap_err(),
+            ContractMapError::NotStored {
+                name: "cw-test".to_string()
+            }
+        );
+
+        map.register_contract("cw-test", 1337);
+        assert_eq!(map.code_id("cw-test").unwrap(), 1337);
+        assert_eq!(map.address("cw-test").unwrap(), "addr1");
     }
 }

@@ -300,6 +300,8 @@ impl CosmOrc {
         let res =
             tokio_block(async { self.client.migrate(addr, new_code_id, payload, key).await })?;
 
+        // TODO: I should update the code_id in `contract_map` now that we have migrated
+
         if let Some(p) = &mut self.gas_profiler {
             p.instrument(
                 contract_name,
@@ -415,7 +417,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -471,7 +473,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -536,7 +538,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -642,7 +644,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -686,7 +688,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -775,7 +777,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -867,7 +869,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1005,7 +1007,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1045,7 +1047,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1130,7 +1132,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
