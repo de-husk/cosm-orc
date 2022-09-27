@@ -300,6 +300,9 @@ impl CosmOrc {
         let res =
             tokio_block(async { self.client.migrate(addr, new_code_id, payload, key).await })?;
 
+        self.contract_map
+            .register_contract(&contract_name, new_code_id);
+
         if let Some(p) = &mut self.gas_profiler {
             p.instrument(
                 contract_name,
@@ -357,7 +360,7 @@ pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
 mod tests {
     use super::CosmOrc;
     use crate::client::chain_res::ChainResponse;
-    use crate::client::cosmwasm::CosmWasmClient;
+    use crate::client::cosmwasm::{CosmWasmClient, MigrateResponse};
     use crate::orchestrator::deploy::DeployInfo;
     use crate::orchestrator::gas_profiler::GasProfiler;
     use crate::{
@@ -415,7 +418,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -471,7 +474,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -536,7 +539,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -642,7 +645,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -686,7 +689,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -775,7 +778,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -867,7 +870,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1005,7 +1008,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1045,7 +1048,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1130,7 +1133,7 @@ mod tests {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
-                code_id: 1337,
+                code_id: Some(1337),
                 address: None,
             },
         )]);
@@ -1227,5 +1230,66 @@ mod tests {
 
         let res = cosm_orc.store_contracts("invalid_dir", &key, None);
         assert_matches!(res.unwrap_err(), StoreError::WasmDirRead { .. });
+    }
+
+    #[test]
+    fn migrate() {
+        let code_ids = HashMap::from([(
+            "cw_test".to_string(),
+            DeployInfo {
+                code_id: Some(1337),
+                address: Some("addr1".to_string()),
+            },
+        )]);
+        let key = SigningKey {
+            name: "test".to_string(),
+            key: Key::Mnemonic("word1 word2".to_string()),
+        };
+
+        let msg = &TestMsg {};
+        let payload = serde_json::to_vec(msg).unwrap();
+
+        let mut mock_client = CosmWasmClient::faux();
+
+        let new_code_id = 1338;
+
+        faux::when!(mock_client.migrate("addr1".to_string(), new_code_id, payload, key.clone()))
+            .then(|(_, _, _, _)| {
+                Ok(MigrateResponse {
+                    res: ChainResponse {
+                        code: Code::Ok,
+                        data: Some(vec![]),
+                        log: "".to_string(),
+                        gas_used: 100,
+                        gas_wanted: 101,
+                    },
+                })
+            });
+
+        let mut cosm_orc = CosmOrc {
+            contract_map: ContractMap::new(code_ids),
+            client: mock_client,
+            gas_profiler: None,
+        };
+
+        let res = cosm_orc
+            .migrate("cw_test", new_code_id, "migrate_op", msg, &key)
+            .unwrap();
+
+        assert_eq!(res.code, Code::Ok);
+        assert_eq!(res.data, Some(vec![]));
+        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.gas_used, 100);
+        assert_eq!(res.gas_wanted, 101);
+
+        assert_eq!(
+            cosm_orc.contract_map.address("cw_test").unwrap(),
+            "addr1".to_string()
+        );
+
+        // code_id is the newly migrated id:
+        assert_eq!(cosm_orc.contract_map.code_id("cw_test").unwrap(), 1338);
+
+        assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 }
