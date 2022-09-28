@@ -11,8 +11,10 @@ use std::time::Duration;
 use tokio::time::timeout as _timeout;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
-use crate::client::chain_res::ChainResponse;
-use crate::client::cosmwasm::CosmWasmClient;
+use crate::client::cosmwasm::{
+    CosmWasmClient, ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse,
+    StoreCodeResponse,
+};
 use crate::config::cfg::Coin;
 use crate::config::key::SigningKey;
 use crate::orchestrator::deploy::ContractMap;
@@ -87,7 +89,7 @@ impl CosmOrc {
         wasm_dir: &str,
         key: &SigningKey,
         instantiate_perms: Option<AccessConfig>,
-    ) -> Result<Vec<ChainResponse>, StoreError> {
+    ) -> Result<Vec<StoreCodeResponse>, StoreError> {
         let mut responses = vec![];
         let wasm_path = Path::new(wasm_dir);
 
@@ -129,7 +131,7 @@ impl CosmOrc {
                     );
                 }
 
-                responses.push(res.res);
+                responses.push(res);
             }
         }
         Ok(responses)
@@ -157,7 +159,7 @@ impl CosmOrc {
         key: &SigningKey,
         admin: Option<String>,
         funds: Vec<Coin>,
-    ) -> Result<ChainResponse, ProcessError>
+    ) -> Result<InstantiateResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -175,7 +177,8 @@ impl CosmOrc {
                 .await
         })?;
 
-        self.contract_map.add_address(&contract_name, res.address)?;
+        self.contract_map
+            .add_address(&contract_name, res.address.clone())?;
 
         if let Some(p) = &mut self.gas_profiler {
             p.instrument(
@@ -189,7 +192,7 @@ impl CosmOrc {
 
         debug!("{:?}", res.res);
 
-        Ok(res.res)
+        Ok(res)
     }
 
     /// Executes a smart contract operation against the configured chain.
@@ -212,7 +215,7 @@ impl CosmOrc {
         msg: &T,
         key: &SigningKey,
         funds: Vec<Coin>,
-    ) -> Result<ChainResponse, ProcessError>
+    ) -> Result<ExecResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -238,7 +241,7 @@ impl CosmOrc {
 
         debug!("{:?}", res.res);
 
-        Ok(res.res)
+        Ok(res)
     }
 
     /// Queries a smart contract operation against the configured chain.
@@ -251,7 +254,7 @@ impl CosmOrc {
     /// * If `contract_name` has not been instantiated via [Self::instantiate()]
     ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
     #[track_caller]
-    pub fn query<S, T>(&self, contract_name: S, msg: &T) -> Result<ChainResponse, ProcessError>
+    pub fn query<S, T>(&self, contract_name: S, msg: &T) -> Result<QueryResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -266,7 +269,7 @@ impl CosmOrc {
 
         debug!("{:?}", res.res);
 
-        Ok(res.res)
+        Ok(res)
     }
 
     /// Migrates a smart contract deployed at `contract_name` to `new_code_id`
@@ -285,7 +288,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<ChainResponse, ProcessError>
+    ) -> Result<MigrateResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -315,7 +318,7 @@ impl CosmOrc {
 
         debug!("{:?}", res.res);
 
-        Ok(res.res)
+        Ok(res)
     }
 
     // TODO: poll_for_n_blocks() should live somewhere else. Its not related to cosmwasm client operations.
@@ -499,6 +502,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             },
         );
@@ -518,7 +523,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -564,6 +570,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             },
         );
@@ -583,7 +591,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -714,6 +723,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -750,7 +761,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -803,6 +815,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -821,6 +835,8 @@ mod tests {
                     gas_used: 2001,
                     gas_wanted: 2002,
                 },
+                height: 1234,
+                tx_hash: "35AD02A".to_string(),
             })
         });
 
@@ -839,7 +855,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -855,7 +872,8 @@ mod tests {
 
         let res = cosm_orc
             .execute("cw_test", "e_test", msg, &key, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
         assert_eq!(res.log, "log".to_string());
@@ -895,6 +913,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -913,6 +933,8 @@ mod tests {
                     gas_used: 2001,
                     gas_wanted: 2002,
                 },
+                height: 1234,
+                tx_hash: "35AD02A".to_string(),
             })
         });
 
@@ -931,7 +953,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -958,7 +981,8 @@ mod tests {
 
         let res = cosm_orc
             .execute("cw_test", "e_test", msg, &key, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
         assert_eq!(res.log, "log".to_string());
@@ -1073,6 +1097,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -1105,7 +1131,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -1158,6 +1185,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -1190,7 +1219,8 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
@@ -1204,7 +1234,7 @@ mod tests {
         );
         assert_eq!(cosm_orc.gas_profiler_report(), None);
 
-        let res = cosm_orc.query("cw_test", msg).unwrap();
+        let res = cosm_orc.query("cw_test", msg).unwrap().res;
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
         assert_eq!(res.log, "log".to_string());
@@ -1263,6 +1293,8 @@ mod tests {
                         gas_used: 100,
                         gas_wanted: 101,
                     },
+                    height: 1234,
+                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
@@ -1274,7 +1306,8 @@ mod tests {
 
         let res = cosm_orc
             .migrate("cw_test", new_code_id, "migrate_op", msg, &key)
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
