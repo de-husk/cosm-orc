@@ -310,7 +310,6 @@ pub struct MigrateResponse {
     pub height: u64,
 }
 impl MigrateResponse {
-    #[allow(dead_code)]
     pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
         self.res.data()
     }
