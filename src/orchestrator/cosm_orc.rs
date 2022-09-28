@@ -11,9 +11,9 @@ use std::time::Duration;
 use tokio::time::timeout as _timeout;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
-use crate::client::chain_res::ChainResponse;
 use crate::client::cosmwasm::{
-    CosmWasmClient, ExecResponse, InstantiateResponse, QueryResponse, StoreCodeResponse,
+    CosmWasmClient, ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse,
+    StoreCodeResponse,
 };
 use crate::config::cfg::Coin;
 use crate::config::key::SigningKey;
@@ -288,7 +288,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-    ) -> Result<ChainResponse, ProcessError>
+    ) -> Result<MigrateResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
@@ -318,7 +318,7 @@ impl CosmOrc {
 
         debug!("{:?}", res.res);
 
-        Ok(res.res)
+        Ok(res)
     }
 
     // TODO: poll_for_n_blocks() should live somewhere else. Its not related to cosmwasm client operations.
@@ -1306,7 +1306,8 @@ mod tests {
 
         let res = cosm_orc
             .migrate("cw_test", new_code_id, "migrate_op", msg, &key)
-            .unwrap();
+            .unwrap()
+            .res;
 
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
