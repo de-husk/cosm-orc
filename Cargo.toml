@@ -14,7 +14,7 @@ license = "Apache-2.0"
 
 [features]
 optimize = ["cw-optimizoor"]
-chain-reg = ["chain-registry"]
+chain-reg = ["chain-registry", "rand"]
 
 [dependencies]
 thiserror = "1.0.31"
@@ -23,8 +23,10 @@ serde_json = "1.0"
 log = "0.4.0"
 config = { version = "0.13.1", features = ["yaml"] }
 keyring = "1.2.0"
+
 cw-optimizoor = { version = "0.7.1", optional = true }
 chain-registry = { version = "0.2.0-rc3", default-features=false, optional = true }
+rand = { version = "0.8.5", optional = true }
 
 cosmrs = { version = "0.9.0", features = ["rpc", "cosmwasm"] }
 cosmos-sdk-proto = "0.14.0"

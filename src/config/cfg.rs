@@ -5,6 +5,9 @@ use std::str::FromStr;
 use tendermint_rpc::error::ErrorDetail::UnsupportedScheme;
 use tendermint_rpc::{Error, Url};
 
+#[cfg(feature = "chain-reg")]
+use rand::Rng;
+
 use super::error::ConfigError;
 use crate::{
     client::error::ClientError,
@@ -90,11 +93,12 @@ impl ConfigInput {
                             chain_id: chain_id.clone(),
                         })?;
 
-                // TODO: I should round-robin the rpcs/grpcs randomly since it's a static list
+                let mut rng = rand::thread_rng();
+
                 let mut rpc_endpoint = chain
                     .apis
                     .rpc
-                    .get(0)
+                    .get(rng.gen_range(0..chain.apis.rpc.len()))
                     .ok_or_else(|| ConfigError::MissingRPC {
                         chain_id: chain_id.clone(),
                     })?
@@ -104,7 +108,7 @@ impl ConfigInput {
                 let mut grpc_endpoint = chain
                     .apis
                     .grpc
-                    .get(0)
+                    .get(rng.gen_range(0..chain.apis.grpc.len()))
                     .ok_or_else(|| ConfigError::MissingGRPC {
                         chain_id: chain_id.clone(),
                     })?
