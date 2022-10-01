@@ -11,10 +11,10 @@ use std::time::Duration;
 use tokio::time::timeout as _timeout;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
-use crate::client::cosmwasm::{
-    CosmWasmClient, ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse,
-    StoreCodeResponse,
+use crate::client::chain_res::{
+    ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
 };
+use crate::client::cosmwasm::CosmWasmClient;
 use crate::config::cfg::Coin;
 use crate::config::key::SigningKey;
 use crate::orchestrator::deploy::ContractMap;
@@ -362,15 +362,14 @@ pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
 #[cfg(test)]
 mod tests {
     use super::CosmOrc;
-    use crate::client::chain_res::ChainResponse;
-    use crate::client::cosmwasm::{CosmWasmClient, MigrateResponse};
+    use crate::client::chain_res::{
+        ChainResponse, ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse,
+    };
+    use crate::client::cosmwasm::CosmWasmClient;
     use crate::orchestrator::deploy::DeployInfo;
     use crate::orchestrator::gas_profiler::GasProfiler;
     use crate::{
-        client::{
-            cosmwasm::{ExecResponse, InstantiateResponse, QueryResponse},
-            error::ClientError,
-        },
+        client::error::ClientError,
         config::key::{Key, SigningKey},
         orchestrator::{
             deploy::ContractMap,

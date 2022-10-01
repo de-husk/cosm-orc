@@ -5,6 +5,66 @@ use cosmrs::tendermint::abci::Code;
 use serde::Deserialize;
 use tendermint_rpc::endpoint::abci_query::AbciQuery;
 
+#[derive(Clone, Debug)]
+pub struct StoreCodeResponse {
+    pub code_id: u64,
+    pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl StoreCodeResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct InstantiateResponse {
+    pub address: String,
+    pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl InstantiateResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ExecResponse {
+    pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl ExecResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct QueryResponse {
+    pub res: ChainResponse,
+}
+impl QueryResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MigrateResponse {
+    pub res: ChainResponse,
+    pub tx_hash: String,
+    pub height: u64,
+}
+impl MigrateResponse {
+    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
+        self.res.data()
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ChainResponse {
     pub code: Code,
