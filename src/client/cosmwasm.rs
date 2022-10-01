@@ -8,14 +8,15 @@ use cosmrs::rpc::Client;
 use cosmrs::tendermint::abci::tag::Key;
 use cosmrs::tx::Msg;
 use cosmrs::{cosmwasm::MsgStoreCode, rpc::HttpClient};
-use serde::Deserialize;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time;
 
-use super::chain_res::ChainResponse;
 use super::cosmos::{abci_query, find_event, send_tx};
-use super::error::{ClientError, DeserializeError};
+use super::error::ClientError;
+use crate::client::chain_res::{
+    ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
+};
 use crate::config::cfg::{ChainCfg, Coin};
 use crate::config::key::SigningKey;
 use crate::orchestrator::AccessConfig;
@@ -252,65 +253,5 @@ impl CosmWasmClient {
         }
 
         Ok(())
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct StoreCodeResponse {
-    pub code_id: u64,
-    pub res: ChainResponse,
-    pub tx_hash: String,
-    pub height: u64,
-}
-impl StoreCodeResponse {
-    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
-        self.res.data()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct InstantiateResponse {
-    pub address: String,
-    pub res: ChainResponse,
-    pub tx_hash: String,
-    pub height: u64,
-}
-impl InstantiateResponse {
-    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
-        self.res.data()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ExecResponse {
-    pub res: ChainResponse,
-    pub tx_hash: String,
-    pub height: u64,
-}
-impl ExecResponse {
-    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
-        self.res.data()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct QueryResponse {
-    pub res: ChainResponse,
-}
-impl QueryResponse {
-    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
-        self.res.data()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MigrateResponse {
-    pub res: ChainResponse,
-    pub tx_hash: String,
-    pub height: u64,
-}
-impl MigrateResponse {
-    pub fn data<'a, T: Deserialize<'a>>(&'a self) -> Result<T, DeserializeError> {
-        self.res.data()
     }
 }
