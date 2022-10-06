@@ -1,10 +1,7 @@
 use serde::Serialize;
 use std::fmt::{self, Debug};
-use std::future::Future;
 use std::time::Duration;
 
-use super::error::{PollBlockError, ProcessError, StoreError};
-use super::internal_api;
 use crate::client::chain_res::{
     ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
 };
@@ -12,17 +9,20 @@ use crate::client::cosmwasm::CosmWasmClient;
 use crate::config::cfg::Coin;
 use crate::config::key::SigningKey;
 use crate::orchestrator::deploy::ContractMap;
+use crate::orchestrator::error::{PollBlockError, ProcessError, StoreError};
 use crate::orchestrator::gas_profiler::{GasProfiler, Report};
-use crate::orchestrator::AccessConfig;
+use crate::orchestrator::{internal_api, AccessConfig};
 
 #[cfg(feature = "optimize")]
-use super::error::OptimizeError;
+use crate::orchestrator::error::OptimizeError;
 
 #[cfg(not(test))]
 use crate::client::error::ClientError;
 #[cfg(not(test))]
 use crate::config::cfg::Config;
 
+/// Async version of [crate::orchestrator::cosm_orc]
+///
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 #[derive(Clone)]
 pub struct CosmOrc {
@@ -58,11 +58,9 @@ impl CosmOrc {
     /// Build and optimize all smart contracts in a given workspace.
     /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
     #[cfg(feature = "optimize")]
-    pub fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
-        tokio_block(internal_api::optimize_contracts(workspace_path))
+    pub async fn optimize_contracts(&self, workspace_path: &str) -> Result<(), OptimizeError> {
+        internal_api::optimize_contracts(workspace_path).await
     }
-
-    // TODO: Implement store_contract() that stores a single contract
 
     /// Uploads the optimized contracts in `wasm_dir` to the configured chain
     /// saving the resulting contract ids in `contract_map`.
@@ -75,20 +73,21 @@ impl CosmOrc {
     /// NOTE: Currently, the name of the wasm files in `wasm_dir` will be
     /// used as the `contract_name` parameter to `instantiate()`, `query()` and `execute()`.
     #[track_caller]
-    pub fn store_contracts(
+    pub async fn store_contracts(
         &mut self,
         wasm_dir: &str,
         key: &SigningKey,
         instantiate_perms: Option<AccessConfig>,
     ) -> Result<Vec<StoreCodeResponse>, StoreError> {
-        tokio_block(internal_api::store_contracts(
+        internal_api::store_contracts(
             &mut self.contract_map,
             &self.client,
             &mut self.gas_profiler,
             wasm_dir,
             key,
             instantiate_perms,
-        ))
+        )
+        .await
     }
 
     /// Initializes a smart contract against the configured chain.
@@ -105,7 +104,7 @@ impl CosmOrc {
     /// * If `contract_name` has not been configured in `Config::code_ids` or stored through
     ///   [Self::store_contracts()] `cosm_orc::orchestrator::error::ContractMapError::NotStored` is thrown.
     #[track_caller]
-    pub fn instantiate<S, T>(
+    pub async fn instantiate<S, T>(
         &mut self,
         contract_name: S,
         op_name: S,
@@ -118,7 +117,7 @@ impl CosmOrc {
         S: Into<String>,
         T: Serialize,
     {
-        tokio_block(internal_api::instantiate(
+        internal_api::instantiate(
             &mut self.contract_map,
             &self.client,
             &mut self.gas_profiler,
@@ -128,7 +127,8 @@ impl CosmOrc {
             key,
             admin,
             funds,
-        ))
+        )
+        .await
     }
 
     /// Executes a smart contract operation against the configured chain.
@@ -144,7 +144,7 @@ impl CosmOrc {
     /// * If `contract_name` has not been instantiated via [Self::instantiate()]
     ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
     #[track_caller]
-    pub fn execute<S, T>(
+    pub async fn execute<S, T>(
         &mut self,
         contract_name: S,
         op_name: S,
@@ -156,7 +156,7 @@ impl CosmOrc {
         S: Into<String>,
         T: Serialize,
     {
-        tokio_block(internal_api::execute(
+        internal_api::execute(
             &mut self.contract_map,
             &self.client,
             &mut self.gas_profiler,
@@ -165,7 +165,8 @@ impl CosmOrc {
             msg,
             key,
             funds,
-        ))
+        )
+        .await
     }
 
     /// Queries a smart contract operation against the configured chain.
@@ -178,17 +179,16 @@ impl CosmOrc {
     /// * If `contract_name` has not been instantiated via [Self::instantiate()]
     ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
     #[track_caller]
-    pub fn query<S, T>(&self, contract_name: S, msg: &T) -> Result<QueryResponse, ProcessError>
+    pub async fn query<S, T>(
+        &self,
+        contract_name: S,
+        msg: &T,
+    ) -> Result<QueryResponse, ProcessError>
     where
         S: Into<String>,
         T: Serialize,
     {
-        tokio_block(internal_api::query(
-            &self.contract_map,
-            &self.client,
-            contract_name,
-            msg,
-        ))
+        internal_api::query(&self.contract_map, &self.client, contract_name, msg).await
     }
 
     /// Migrates a smart contract deployed at `contract_name` to `new_code_id`
@@ -200,7 +200,7 @@ impl CosmOrc {
     /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
     /// * `key` - SigningKey used to sign the tx.
     #[track_caller]
-    pub fn migrate<S, T>(
+    pub async fn migrate<S, T>(
         &mut self,
         contract_name: S,
         new_code_id: u64,
@@ -212,7 +212,7 @@ impl CosmOrc {
         S: Into<String>,
         T: Serialize,
     {
-        tokio_block(internal_api::migrate(
+        internal_api::migrate(
             &mut self.contract_map,
             &self.client,
             &mut self.gas_profiler,
@@ -221,28 +221,22 @@ impl CosmOrc {
             op_name,
             msg,
             key,
-        ))
+        )
+        .await
     }
-
-    // TODO: poll_for_n_blocks() should live somewhere else. Its not related to cosmwasm client operations.
 
     /// Blocks the current thread until `n` blocks have been processed.
     /// # Arguments
     /// * `n` - Wait for this number of blocks to process
     /// * `timeout` - Throws `PollBlockError` once `timeout` has elapsed.
     /// * `is_first_block` - Set to true if waiting for the first block to process for new test nodes.
-    pub fn poll_for_n_blocks<T: Into<Duration> + Send>(
+    pub async fn poll_for_n_blocks<T: Into<Duration> + Send>(
         &self,
         n: u64,
         timeout: T,
         is_first_block: bool,
     ) -> Result<(), PollBlockError> {
-        tokio_block(internal_api::poll_for_n_blocks(
-            &self.client,
-            n,
-            timeout,
-            is_first_block,
-        ))
+        internal_api::poll_for_n_blocks(&self.client, n, timeout, is_first_block).await
     }
 
     /// Get gas usage report
@@ -251,13 +245,10 @@ impl CosmOrc {
     }
 }
 
-pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(f)
-}
+// TODO: Figure out the best way to reuse these tests between the async and blocking CosmOrc APIs
+// Since they are practically identical
+// <---
+// <---
 
 #[cfg(test)]
 mod tests {
@@ -284,8 +275,8 @@ mod tests {
     #[derive(Serialize)]
     pub struct TestMsg {}
 
-    #[test]
-    fn instantiate_not_stored() {
+    #[tokio::test]
+    async fn instantiate_not_stored() {
         let code_ids = HashMap::new();
         let key = SigningKey {
             name: "test".to_string(),
@@ -298,7 +289,9 @@ mod tests {
             gas_profiler: None,
         };
 
-        let res = cosm_orc.instantiate("cw_not_stored", "i_test", &TestMsg {}, &key, None, vec![]);
+        let res = cosm_orc
+            .instantiate("cw_not_stored", "i_test", &TestMsg {}, &key, None, vec![])
+            .await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -315,8 +308,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn instantiate_cosmossdk_error() {
+    #[tokio::test]
+    async fn instantiate_cosmossdk_error() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -354,7 +347,9 @@ mod tests {
             gas_profiler: None,
         };
 
-        let res = cosm_orc.instantiate("cw_test", "i_test", msg, &key, None, vec![]);
+        let res = cosm_orc
+            .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -371,8 +366,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn instantiate() {
+    #[tokio::test]
+    async fn instantiate() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -422,6 +417,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -439,8 +435,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn instantiate_with_profiler() {
+    #[tokio::test]
+    async fn instantiate_with_profiler() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -490,6 +486,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -517,8 +514,8 @@ mod tests {
         assert_eq!(r.gas_wanted, 101);
     }
 
-    #[test]
-    fn execute_not_stored() {
+    #[tokio::test]
+    async fn execute_not_stored() {
         let code_ids = HashMap::new();
         let key = SigningKey {
             name: "test".to_string(),
@@ -531,7 +528,9 @@ mod tests {
             gas_profiler: None,
         };
 
-        let res = cosm_orc.execute("cw_not_stored", "e_test", &TestMsg {}, &key, vec![]);
+        let res = cosm_orc
+            .execute("cw_not_stored", "e_test", &TestMsg {}, &key, vec![])
+            .await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -548,8 +547,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn execute_not_initialized() {
+    #[tokio::test]
+    async fn execute_not_initialized() {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
@@ -575,7 +574,9 @@ mod tests {
             }
         );
 
-        let res = cosm_orc.execute("cw_not_init", "e_test", &TestMsg {}, &key, vec![]);
+        let res = cosm_orc
+            .execute("cw_not_init", "e_test", &TestMsg {}, &key, vec![])
+            .await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -592,8 +593,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn execute_cosmossdk_error() {
+    #[tokio::test]
+    async fn execute_cosmossdk_error() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -660,6 +661,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -674,7 +676,9 @@ mod tests {
             "cosmos_contract_addr".to_string()
         );
 
-        let res = cosm_orc.execute("cw_test", "e_test", msg, &key, vec![]);
+        let res = cosm_orc
+            .execute("cw_test", "e_test", msg, &key, vec![])
+            .await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -684,8 +688,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn execute() {
+    #[tokio::test]
+    async fn execute() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -754,6 +758,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -771,6 +776,7 @@ mod tests {
 
         let res = cosm_orc
             .execute("cw_test", "e_test", msg, &key, vec![])
+            .await
             .unwrap()
             .res;
         assert_eq!(res.code, Code::Ok);
@@ -782,8 +788,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn execute_with_profiler() {
+    #[tokio::test]
+    async fn execute_with_profiler() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -852,6 +858,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -880,6 +887,7 @@ mod tests {
 
         let res = cosm_orc
             .execute("cw_test", "e_test", msg, &key, vec![])
+            .await
             .unwrap()
             .res;
         assert_eq!(res.code, Code::Ok);
@@ -901,15 +909,15 @@ mod tests {
         assert_eq!(r.gas_wanted, 2002);
     }
 
-    #[test]
-    fn query_not_stored() {
+    #[tokio::test]
+    async fn query_not_stored() {
         let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(HashMap::new()),
             client: CosmWasmClient::faux(),
             gas_profiler: None,
         };
 
-        let res = cosm_orc.query("cw_not_stored", &TestMsg {});
+        let res = cosm_orc.query("cw_not_stored", &TestMsg {}).await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -926,8 +934,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn query_not_initialized() {
+    #[tokio::test]
+    async fn query_not_initialized() {
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
@@ -949,7 +957,7 @@ mod tests {
             }
         );
 
-        let res = cosm_orc.query("cw_not_init", &TestMsg {});
+        let res = cosm_orc.query("cw_not_init", &TestMsg {}).await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -966,8 +974,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn query_cosmossdk_error() {
+    #[tokio::test]
+    async fn query_cosmossdk_error() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -1030,6 +1038,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -1044,7 +1053,7 @@ mod tests {
             "cosmos_contract_addr".to_string()
         );
 
-        let res = cosm_orc.query("cw_test", msg);
+        let res = cosm_orc.query("cw_test", msg).await;
 
         assert_matches!(
             res.unwrap_err(),
@@ -1054,8 +1063,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn query() {
+    #[tokio::test]
+    async fn query() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -1118,6 +1127,7 @@ mod tests {
 
         let res = cosm_orc
             .instantiate("cw_test", "i_test", msg, &key, None, vec![])
+            .await
             .unwrap()
             .res;
 
@@ -1133,7 +1143,7 @@ mod tests {
         );
         assert_eq!(cosm_orc.gas_profiler_report(), None);
 
-        let res = cosm_orc.query("cw_test", msg).unwrap().res;
+        let res = cosm_orc.query("cw_test", msg).await.unwrap().res;
         assert_eq!(res.code, Code::Ok);
         assert_eq!(res.data, Some(vec![]));
         assert_eq!(res.log, "log".to_string());
@@ -1143,8 +1153,8 @@ mod tests {
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
-    #[test]
-    fn store_invalid_wasm_dir() {
+    #[tokio::test]
+    async fn store_invalid_wasm_dir() {
         let code_ids = HashMap::new();
         let key = SigningKey {
             name: "test".to_string(),
@@ -1157,12 +1167,12 @@ mod tests {
             gas_profiler: None,
         };
 
-        let res = cosm_orc.store_contracts("invalid_dir", &key, None);
+        let res = cosm_orc.store_contracts("invalid_dir", &key, None).await;
         assert_matches!(res.unwrap_err(), StoreError::WasmDirRead { .. });
     }
 
-    #[test]
-    fn migrate() {
+    #[tokio::test]
+    async fn migrate() {
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -1205,6 +1215,7 @@ mod tests {
 
         let res = cosm_orc
             .migrate("cw_test", new_code_id, "migrate_op", msg, &key)
+            .await
             .unwrap()
             .res;
 

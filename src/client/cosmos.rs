@@ -1,6 +1,6 @@
 use super::chain_res::ChainResponse;
 use super::error::ClientError;
-use crate::config::cfg::ChainCfg;
+use crate::config::chain_registry::ChainCfg;
 use cosmos_sdk_proto::cosmos::auth::v1beta1::{
     BaseAccount, QueryAccountRequest, QueryAccountResponse,
 };

@@ -1,18 +1,11 @@
 use config::Config as _Config;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::str::FromStr;
-use tendermint_rpc::error::ErrorDetail::UnsupportedScheme;
-use tendermint_rpc::{Error, Url};
 
-#[cfg(feature = "chain-reg")]
-use rand::Rng;
-
+use super::chain_registry::{parse_url, ChainCfg};
 use super::error::ConfigError;
-use crate::{
-    client::error::ClientError,
-    orchestrator::{cosm_orc::tokio_block, deploy::DeployInfo},
-};
+use crate::client::error::ClientError;
+use crate::orchestrator::deploy::DeployInfo;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -32,17 +25,6 @@ impl Config {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ChainCfg {
-    pub denom: String,
-    pub prefix: String,
-    pub chain_id: String,
-    pub rpc_endpoint: String,
-    pub grpc_endpoint: String,
-    pub gas_prices: f64,
-    pub gas_adjustment: f64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConfigInput {
     pub chain_cfg: ChainConfig,
     #[serde(default)]
@@ -50,13 +32,9 @@ pub struct ConfigInput {
 }
 
 impl ConfigInput {
-    pub fn to_chain_cfg(self) -> Result<ChainCfg, ConfigError> {
-        tokio_block(self.to_chain_cfg_async())
-    }
-
     /// Converts a ConfigInput into a ChainCfg
     #[allow(clippy::infallible_destructuring_match)]
-    pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
+    pub fn to_chain_cfg(self) -> Result<ChainCfg, ConfigError> {
         let chain_cfg = match self.chain_cfg {
             ChainConfig::Custom(chain_cfg) => {
                 // parse and optionally fix scheme for configured api endpoints:
@@ -76,59 +54,10 @@ impl ConfigInput {
 
             #[cfg(feature = "chain-reg")]
             ChainConfig::ChainRegistry(chain_id) => {
-                // get ChainCfg from Chain Registry API:
-                let chain = chain_registry::get::get_chain(&chain_id)
-                    .await
-                    .map_err(|e| ConfigError::ChainRegistryAPI { source: e })?
-                    .ok_or_else(|| ConfigError::ChainID {
-                        chain_id: chain_id.clone(),
-                    })?;
-
-                let fee_token =
-                    chain
-                        .fees
-                        .fee_tokens
-                        .get(0)
-                        .ok_or_else(|| ConfigError::MissingFee {
-                            chain_id: chain_id.clone(),
-                        })?;
-
-                let mut rng = rand::thread_rng();
-
-                let mut rpc_endpoint = chain
-                    .apis
-                    .rpc
-                    .get(rng.gen_range(0..chain.apis.rpc.len()))
-                    .ok_or_else(|| ConfigError::MissingRPC {
-                        chain_id: chain_id.clone(),
-                    })?
-                    .address
-                    .clone();
-
-                let mut grpc_endpoint = chain
-                    .apis
-                    .grpc
-                    .get(rng.gen_range(0..chain.apis.grpc.len()))
-                    .ok_or_else(|| ConfigError::MissingGRPC {
-                        chain_id: chain_id.clone(),
-                    })?
-                    .address
-                    .clone();
-
-                // parse and optionally fix scheme for configured api endpoints:
-                rpc_endpoint = parse_url(&rpc_endpoint)?;
-                grpc_endpoint = parse_url(&grpc_endpoint)?;
-
-                ChainCfg {
-                    denom: fee_token.denom.clone(),
-                    prefix: chain.bech32_prefix,
-                    chain_id: chain.chain_id,
-                    gas_prices: fee_token.average_gas_price.into(),
-                    // TODO: We should probably let the user configure `gas_adjustment` for this path as well
-                    gas_adjustment: 1.5,
-                    rpc_endpoint,
-                    grpc_endpoint,
-                }
+                use crate::config::chain_registry::chain_info;
+                use crate::orchestrator::cosm_orc::tokio_block;
+                // TODO: expose an async version of this API
+                tokio_block(chain_info(chain_id))?
             }
         };
 
@@ -150,41 +79,19 @@ pub enum ChainConfig {
 impl Config {
     /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
     pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
-        return tokio_block(Self::from_yaml_async(file));
-    }
-
-    /// Async version of [Self::from_yaml()]
-    pub async fn from_yaml_async(file: &str) -> Result<Config, ConfigError> {
         let settings = _Config::builder()
             .add_source(config::File::with_name(file))
             .build()?;
         let cfg = settings.try_deserialize::<ConfigInput>()?;
 
         let contract_deploy_info = cfg.contract_deploy_info.clone();
-        let chain_cfg = cfg.to_chain_cfg_async().await?;
+        let chain_cfg = cfg.to_chain_cfg()?;
 
         Ok(Config {
             chain_cfg,
             contract_deploy_info,
         })
     }
-}
-
-// Attempt to parse the configured url to ensure that it is valid.
-// If url is missing the Scheme then default to https.
-fn parse_url(url: &str) -> Result<String, Error> {
-    let u = Url::from_str(url);
-
-    if let Err(Error(UnsupportedScheme(detail), report)) = u {
-        // if url is missing the scheme, then we will default to https:
-        if !url.contains("://") {
-            return Ok(format!("https://{}", url));
-        }
-
-        return Err(Error(UnsupportedScheme(detail), report));
-    }
-
-    Ok(u?.to_string())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]

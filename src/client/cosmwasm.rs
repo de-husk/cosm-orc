@@ -17,7 +17,8 @@ use super::error::ClientError;
 use crate::client::chain_res::{
     ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
 };
-use crate::config::cfg::{ChainCfg, Coin};
+use crate::config::cfg::Coin;
+use crate::config::chain_registry::ChainCfg;
 use crate::config::key::SigningKey;
 use crate::orchestrator::AccessConfig;
 
