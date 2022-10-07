@@ -3,12 +3,12 @@ use serde::Serialize;
 use std::env::consts::ARCH;
 use std::ffi::OsStr;
 use std::fs;
-use std::panic::Location;
 use std::path::Path;
 use std::time::Duration;
 use tokio::time::timeout as _timeout;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
+use super::gas_profiler::CallLoc;
 use crate::client::chain_res::{
     ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
 };
@@ -21,9 +21,6 @@ use crate::orchestrator::AccessConfig;
 
 #[cfg(feature = "optimize")]
 use super::error::OptimizeError;
-
-// TODO: Whats the best way in rust to do this?
-// I would normally use a trait here but i cant have a function that calls either the blocking or async trait fns (i want to avoid feature flags or overly complicated macros).
 
 // Internal implementation details used by both the async and blocking public APIs
 
@@ -43,6 +40,7 @@ pub(crate) async fn store_contracts(
     wasm_dir: &str,
     key: &SigningKey,
     instantiate_perms: Option<AccessConfig>,
+    caller_loc: &CallLoc,
 ) -> Result<Vec<StoreCodeResponse>, StoreError> {
     let mut responses = vec![];
     let wasm_path = Path::new(wasm_dir);
@@ -76,7 +74,7 @@ pub(crate) async fn store_contracts(
                     "Store".to_string(),
                     CommandType::Store,
                     &res.res,
-                    Location::caller(),
+                    caller_loc,
                 );
             }
 
@@ -98,6 +96,7 @@ pub(crate) async fn instantiate<S, T>(
     key: &SigningKey,
     admin: Option<String>,
     funds: Vec<Coin>,
+    caller_loc: &CallLoc,
 ) -> Result<InstantiateResponse, ProcessError>
 where
     S: Into<String>,
@@ -122,7 +121,7 @@ where
             op_name,
             CommandType::Instantiate,
             &res.res,
-            Location::caller(),
+            caller_loc,
         );
     }
 
@@ -141,6 +140,7 @@ pub(crate) async fn execute<S, T>(
     msg: &T,
     key: &SigningKey,
     funds: Vec<Coin>,
+    caller_loc: &CallLoc,
 ) -> Result<ExecResponse, ProcessError>
 where
     S: Into<String>,
@@ -161,7 +161,7 @@ where
             op_name,
             CommandType::Execute,
             &res.res,
-            Location::caller(),
+            caller_loc,
         );
     }
 
@@ -203,6 +203,7 @@ pub(crate) async fn migrate<S, T>(
     op_name: S,
     msg: &T,
     key: &SigningKey,
+    caller_loc: &CallLoc,
 ) -> Result<MigrateResponse, ProcessError>
 where
     S: Into<String>,
@@ -225,7 +226,7 @@ where
             op_name,
             CommandType::Migrate,
             &res.res,
-            Location::caller(),
+            caller_loc,
         );
     }
 

@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::fmt::{self, Debug};
 use std::future::Future;
+use std::panic::Location;
 use std::time::Duration;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
@@ -88,6 +89,7 @@ impl CosmOrc {
             wasm_dir,
             key,
             instantiate_perms,
+            &Location::caller().into(),
         ))
     }
 
@@ -128,6 +130,7 @@ impl CosmOrc {
             key,
             admin,
             funds,
+            &Location::caller().into(),
         ))
     }
 
@@ -165,6 +168,7 @@ impl CosmOrc {
             msg,
             key,
             funds,
+            &Location::caller().into(),
         ))
     }
 
@@ -177,7 +181,6 @@ impl CosmOrc {
     /// # Errors
     /// * If `contract_name` has not been instantiated via [Self::instantiate()]
     ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
-    #[track_caller]
     pub fn query<S, T>(&self, contract_name: S, msg: &T) -> Result<QueryResponse, ProcessError>
     where
         S: Into<String>,
@@ -221,6 +224,7 @@ impl CosmOrc {
             op_name,
             msg,
             key,
+            &Location::caller().into(),
         ))
     }
 

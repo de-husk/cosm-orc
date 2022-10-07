@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::fmt::{self, Debug};
+use std::panic::Location;
 use std::time::Duration;
 
 use crate::client::chain_res::{
@@ -86,6 +87,7 @@ impl CosmOrc {
             wasm_dir,
             key,
             instantiate_perms,
+            &Location::caller().into(),
         )
         .await
     }
@@ -127,6 +129,7 @@ impl CosmOrc {
             key,
             admin,
             funds,
+            &Location::caller().into(),
         )
         .await
     }
@@ -165,6 +168,7 @@ impl CosmOrc {
             msg,
             key,
             funds,
+            &Location::caller().into(),
         )
         .await
     }
@@ -221,6 +225,7 @@ impl CosmOrc {
             op_name,
             msg,
             key,
+            &Location::caller().into(),
         )
         .await
     }
