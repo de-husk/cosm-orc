@@ -21,14 +21,14 @@ jobs:
         with:
           toolchain: nightly
           command: build
-          args: --features="chain-reg"
+          args: --features chain-reg
 
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
           toolchain: nightly
           command: test
-          args: --features="chain-reg"
+          args: --features chain-reg
         env:
           RUST_BACKTRACE: 1
 
@@ -58,4 +58,4 @@ jobs:
         with:
           toolchain: nightly
           command: clippy
-          args: --features="chain-reg" --all-targets -- -D warnings
+          args: --features chain-reg --all-targets -- -D warnings
