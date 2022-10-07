@@ -263,6 +263,8 @@ pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
         .block_on(f)
 }
 
+// TODO: Move these tests to internal_api.rs
+
 #[cfg(test)]
 mod tests {
     use super::CosmOrc;
