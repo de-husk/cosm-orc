@@ -22,6 +22,22 @@ pub struct Config {
 }
 
 impl Config {
+    /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
+    pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
+        let settings = _Config::builder()
+            .add_source(config::File::with_name(file))
+            .build()?;
+        let cfg = settings.try_deserialize::<ConfigInput>()?;
+
+        let contract_deploy_info = cfg.contract_deploy_info.clone();
+        let chain_cfg = cfg.to_chain_cfg()?;
+
+        Ok(Config {
+            chain_cfg,
+            contract_deploy_info,
+        })
+    }
+
     pub fn from_config_input(cfg_input: ConfigInput) -> Result<Self, ConfigError> {
         Ok(Self {
             contract_deploy_info: cfg_input.contract_deploy_info.clone(),
@@ -137,24 +153,6 @@ pub enum ChainConfig {
     /// Enable `chain-reg` feature to use.
     #[cfg(feature = "chain-reg")]
     ChainRegistry(String),
-}
-
-impl Config {
-    /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
-    pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
-        let settings = _Config::builder()
-            .add_source(config::File::with_name(file))
-            .build()?;
-        let cfg = settings.try_deserialize::<ConfigInput>()?;
-
-        let contract_deploy_info = cfg.contract_deploy_info.clone();
-        let chain_cfg = cfg.to_chain_cfg()?;
-
-        Ok(Config {
-            chain_cfg,
-            contract_deploy_info,
-        })
-    }
 }
 
 // Attempt to parse the configured url to ensure that it is valid.
