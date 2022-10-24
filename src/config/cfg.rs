@@ -6,13 +6,12 @@ use tendermint_rpc::error::ErrorDetail::UnsupportedScheme;
 use tendermint_rpc::{Error, Url};
 
 #[cfg(feature = "chain-reg")]
+use crate::orchestrator::cosm_orc::tokio_block;
+#[cfg(feature = "chain-reg")]
 use rand::Rng;
 
 use super::error::ConfigError;
-use crate::{
-    client::error::ClientError,
-    orchestrator::{cosm_orc::tokio_block, deploy::DeployInfo},
-};
+use crate::{client::error::ClientError, orchestrator::deploy::DeployInfo};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -51,12 +50,6 @@ pub struct ConfigInput {
 
 impl ConfigInput {
     pub fn to_chain_cfg(self) -> Result<ChainCfg, ConfigError> {
-        tokio_block(self.to_chain_cfg_async())
-    }
-
-    /// Converts a ConfigInput into a ChainCfg
-    #[allow(clippy::infallible_destructuring_match)]
-    pub async fn to_chain_cfg_async(self) -> Result<ChainCfg, ConfigError> {
         let chain_cfg = match self.chain_cfg {
             ChainConfig::Custom(chain_cfg) => {
                 // parse and optionally fix scheme for configured api endpoints:
@@ -77,8 +70,7 @@ impl ConfigInput {
             #[cfg(feature = "chain-reg")]
             ChainConfig::ChainRegistry(chain_id) => {
                 // get ChainCfg from Chain Registry API:
-                let chain = chain_registry::get::get_chain(&chain_id)
-                    .await
+                let chain = tokio_block(chain_registry::get::get_chain(&chain_id))
                     .map_err(|e| ConfigError::ChainRegistryAPI { source: e })?
                     .ok_or_else(|| ConfigError::ChainID {
                         chain_id: chain_id.clone(),
@@ -150,18 +142,13 @@ pub enum ChainConfig {
 impl Config {
     /// Reads a yaml file containing a `ConfigInput` and converts it to a useable `Config` object.
     pub fn from_yaml(file: &str) -> Result<Config, ConfigError> {
-        return tokio_block(Self::from_yaml_async(file));
-    }
-
-    /// Async version of [Self::from_yaml()]
-    pub async fn from_yaml_async(file: &str) -> Result<Config, ConfigError> {
         let settings = _Config::builder()
             .add_source(config::File::with_name(file))
             .build()?;
         let cfg = settings.try_deserialize::<ConfigInput>()?;
 
         let contract_deploy_info = cfg.contract_deploy_info.clone();
-        let chain_cfg = cfg.to_chain_cfg_async().await?;
+        let chain_cfg = cfg.to_chain_cfg()?;
 
         Ok(Config {
             chain_cfg,
