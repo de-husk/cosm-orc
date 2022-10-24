@@ -2,7 +2,7 @@
 
 [![cosm-orc on crates.io](https://img.shields.io/crates/v/cosm-orc.svg)](https://crates.io/crates/cosm-orc) [![Docs](https://docs.rs/cosm-orc/badge.svg)](https://docs.rs/cosm-orc)
 
-Rust Cosmwasm smart contract orchestration and gas profiling library.
+Rust Cosmwasm smart contract integration testing and gas profiling library.
 
 Store, instantiate, execute, and query [Cosmwasm](https://github.com/CosmWasm/cosmwasm) smart contracts against a configured [Cosmos](https://github.com/cosmos/cosmos-sdk) based chain. 
 
