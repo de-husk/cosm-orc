@@ -8,15 +8,24 @@ use std::future::Future;
 use std::panic::Location;
 use std::path::Path;
 use std::time::Duration;
-use tokio::time::timeout as _timeout;
+use tokio::time::{self, timeout as _timeout};
+
+use cosm_tome::chain::coin::Coin;
+use cosm_tome::chain::error::ChainError;
+use cosm_tome::chain::request::TxOptions;
+use cosm_tome::clients::client::{CosmTome, CosmosClient};
+use cosm_tome::clients::cosmos_grpc::CosmosgRPC;
+use cosm_tome::clients::tendermint_rpc::TendermintRPC;
+use cosm_tome::modules::auth::model::Address;
+use cosm_tome::modules::cosmwasm::model::{
+    ExecRequest, ExecResponse, InstantiateRequest, InstantiateResponse, MigrateRequest,
+    MigrateResponse, QueryResponse, StoreCodeRequest, StoreCodeResponse,
+};
+use cosm_tome::modules::tendermint::error::TendermintError;
+use cosm_tome::signing_key::key::SigningKey;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
-use crate::client::chain_res::{
-    ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse, StoreCodeResponse,
-};
-use crate::client::cosmwasm::CosmWasmClient;
-use crate::config::cfg::Coin;
-use crate::config::key::SigningKey;
+use crate::config::cfg::Config;
 use crate::orchestrator::deploy::ContractMap;
 use crate::orchestrator::gas_profiler::{CommandType, GasProfiler, Report};
 use crate::orchestrator::AccessConfig;
@@ -24,43 +33,63 @@ use crate::orchestrator::AccessConfig;
 #[cfg(feature = "optimize")]
 use super::error::OptimizeError;
 
-#[cfg(not(test))]
-use crate::client::error::ClientError;
-#[cfg(not(test))]
-use crate::config::cfg::Config;
-
 /// Stores cosmwasm contracts and executes their messages against the configured chain.
 #[derive(Clone)]
-pub struct CosmOrc {
+pub struct CosmOrc<C: CosmosClient> {
     pub contract_map: ContractMap,
-    client: CosmWasmClient,
+    client: CosmTome<C>,
     gas_profiler: Option<GasProfiler>,
+    tx_options: TxOptions,
 }
 
-impl Debug for CosmOrc {
+impl<C: CosmosClient> Debug for CosmOrc<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.contract_map)
     }
 }
 
-impl CosmOrc {
-    /// Creates a CosmOrc object from the supplied Config,
+impl CosmOrc<CosmosgRPC> {
+    /// Creates a CosmOrc object from the supplied Config, using the CosmosgRPC backing api
     /// optionally using a gas profiler
-    #[cfg(not(test))]
-    pub fn new(cfg: Config, use_gas_profiler: bool) -> Result<Self, ClientError> {
+    pub fn new(cfg: Config, use_gas_profiler: bool) -> Result<CosmOrc<CosmosgRPC>, ChainError> {
         let gas_profiler = if use_gas_profiler {
             Some(GasProfiler::new())
         } else {
             None
         };
 
-        Ok(Self {
+        Ok(CosmOrc {
             contract_map: ContractMap::new(cfg.contract_deploy_info),
-            client: CosmWasmClient::new(cfg.chain_cfg)?,
+            client: CosmTome::with_cosmos_grpc(cfg.chain_cfg)?,
             gas_profiler,
+            tx_options: TxOptions::default(),
         })
     }
+}
 
+impl CosmOrc<TendermintRPC> {
+    /// Creates a CosmOrc object from the supplied Config, using the tendermint RPC backing api
+    /// optionally using a gas profiler
+    pub fn new_tendermint_rpc(
+        cfg: Config,
+        use_gas_profiler: bool,
+    ) -> Result<CosmOrc<TendermintRPC>, ChainError> {
+        let gas_profiler = if use_gas_profiler {
+            Some(GasProfiler::new())
+        } else {
+            None
+        };
+
+        Ok(CosmOrc {
+            contract_map: ContractMap::new(cfg.contract_deploy_info),
+            client: CosmTome::with_tendermint_rpc(cfg.chain_cfg)?,
+            gas_profiler,
+            tx_options: TxOptions::default(),
+        })
+    }
+}
+
+impl<C: CosmosClient> CosmOrc<C> {
     /// Build and optimize all smart contracts in a given workspace.
     /// `workspace_path` is the path to the Cargo.toml or directory containing the Cargo.toml.
     #[cfg(feature = "optimize")]
@@ -102,7 +131,14 @@ impl CosmOrc {
 
                 let res = tokio_block(async {
                     self.client
-                        .store(wasm, key, instantiate_perms.clone())
+                        .wasm_store(
+                            StoreCodeRequest {
+                                wasm_data: wasm,
+                                instantiate_perms: instantiate_perms.clone(),
+                            },
+                            key,
+                            &self.tx_options,
+                        )
                         .await
                 })?;
 
@@ -157,7 +193,7 @@ impl CosmOrc {
         op_name: S,
         msg: &T,
         key: &SigningKey,
-        admin: Option<String>,
+        admin: Option<Address>,
         funds: Vec<Coin>,
     ) -> Result<InstantiateResponse, ProcessError>
     where
@@ -169,11 +205,19 @@ impl CosmOrc {
 
         let code_id = self.contract_map.code_id(&contract_name)?;
 
-        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
-
         let res = tokio_block(async {
             self.client
-                .instantiate(code_id, payload, key, admin, funds)
+                .wasm_instantiate(
+                    InstantiateRequest {
+                        code_id,
+                        msg,
+                        label: "cosm-orc".to_string(),
+                        admin,
+                        funds,
+                    },
+                    key,
+                    &self.tx_options,
+                )
                 .await
         })?;
 
@@ -225,9 +269,19 @@ impl CosmOrc {
 
         let addr = self.contract_map.address(&contract_name)?;
 
-        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
-
-        let res = tokio_block(async { self.client.execute(addr, payload, key, funds).await })?;
+        let res = tokio_block(async {
+            self.client
+                .wasm_execute(
+                    ExecRequest {
+                        address: addr.parse()?,
+                        msg,
+                        funds,
+                    },
+                    key,
+                    &self.tx_options,
+                )
+                .await
+        })?;
 
         if let Some(p) = &mut self.gas_profiler {
             p.instrument(
@@ -263,9 +317,7 @@ impl CosmOrc {
 
         let addr = self.contract_map.address(&contract_name)?;
 
-        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
-
-        let res = tokio_block(async { self.client.query(addr, payload).await })?;
+        let res = tokio_block(async { self.client.wasm_query(addr.parse()?, msg).await })?;
 
         debug!("{:?}", res.res);
 
@@ -298,10 +350,19 @@ impl CosmOrc {
 
         let addr = self.contract_map.address(&contract_name)?;
 
-        let payload = serde_json::to_vec(msg).map_err(ProcessError::json)?;
-
-        let res =
-            tokio_block(async { self.client.migrate(addr, new_code_id, payload, key).await })?;
+        let res = tokio_block(async {
+            self.client
+                .wasm_migrate(
+                    MigrateRequest {
+                        address: addr.parse()?,
+                        new_code_id,
+                        msg,
+                    },
+                    key,
+                    &self.tx_options,
+                )
+                .await
+        })?;
 
         self.contract_map
             .register_contract(&contract_name, new_code_id);
@@ -321,8 +382,6 @@ impl CosmOrc {
         Ok(res)
     }
 
-    // TODO: poll_for_n_blocks() should live somewhere else. Its not related to cosmwasm client operations.
-
     /// Blocks the current thread until `n` blocks have been processed.
     /// # Arguments
     /// * `n` - Wait for this number of blocks to process
@@ -335,10 +394,42 @@ impl CosmOrc {
         is_first_block: bool,
     ) -> Result<(), PollBlockError> {
         tokio_block(async {
-            _timeout(
-                timeout.into(),
-                self.client.poll_for_n_blocks(n, is_first_block),
-            )
+            _timeout(timeout.into(), async {
+                if is_first_block {
+                    while let Err(e) = self.client.tendermint_query_latest_block().await {
+                        if !matches!(e, TendermintError::ChainError { .. }) {
+                            return Err(PollBlockError::TendermintError(e));
+                        }
+                        time::sleep(Duration::from_millis(500)).await;
+                    }
+                }
+
+                let mut curr_height = self
+                    .client
+                    .tendermint_query_latest_block()
+                    .await?
+                    .block
+                    .header
+                    .unwrap()
+                    .height as u64;
+
+                let target_height = curr_height + n;
+
+                while curr_height < target_height {
+                    time::sleep(Duration::from_millis(500)).await;
+
+                    curr_height = self
+                        .client
+                        .tendermint_query_latest_block()
+                        .await?
+                        .block
+                        .header
+                        .unwrap()
+                        .height as u64;
+                }
+
+                Ok(())
+            })
             .await
         })??;
 
@@ -362,40 +453,60 @@ pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
 #[cfg(test)]
 mod tests {
     use super::CosmOrc;
-    use crate::client::chain_res::{
-        ChainResponse, ExecResponse, InstantiateResponse, MigrateResponse, QueryResponse,
-    };
-    use crate::client::cosmwasm::CosmWasmClient;
     use crate::orchestrator::deploy::DeployInfo;
     use crate::orchestrator::gas_profiler::GasProfiler;
-    use crate::{
-        client::error::ClientError,
-        config::key::{Key, SigningKey},
-        orchestrator::{
-            deploy::ContractMap,
-            error::{ContractMapError, ProcessError, StoreError},
-        },
+    use crate::orchestrator::{
+        deploy::ContractMap,
+        error::{ContractMapError, ProcessError, StoreError},
     };
     use assert_matches::assert_matches;
-    use cosmrs::tendermint::abci::Code;
+    use cosm_tome::chain::error::ChainError;
+    use cosm_tome::chain::fee::GasInfo;
+    use cosm_tome::chain::request::TxOptions;
+    use cosm_tome::chain::response::{ChainResponse, ChainTxResponse, Code, Event, Tag};
+    use cosm_tome::clients::client::{CosmTome, MockCosmosClient};
+    use cosm_tome::config::cfg::ChainConfig;
+    use cosm_tome::modules::auth::error::AccountError;
+    use cosm_tome::modules::cosmwasm::error::CosmwasmError;
+    use cosm_tome::modules::tx::error::TxError;
+    use cosm_tome::signing_key::key::SigningKey;
+    use cosmos_sdk_proto::cosmos::auth::v1beta1::{
+        BaseAccount, QueryAccountRequest, QueryAccountResponse,
+    };
+    use cosmos_sdk_proto::cosmwasm::wasm::v1::{
+        QuerySmartContractStateRequest, QuerySmartContractStateResponse,
+    };
+    use cosmos_sdk_proto::traits::MessageExt;
     use serde::Serialize;
     use std::collections::HashMap;
+    use std::vec;
 
     #[derive(Serialize)]
     pub struct TestMsg {}
 
+    pub fn test_cfg() -> ChainConfig {
+        ChainConfig {
+            denom: "utest".to_string(),
+            prefix: "test".to_string(),
+            chain_id: "test-1".to_string(),
+            rpc_endpoint: None,
+            grpc_endpoint: Some("localhost:12690".to_string()),
+            gas_prices: 0.1,
+            gas_adjustment: 1.5,
+        }
+    }
+
     #[test]
     fn instantiate_not_stored() {
+        let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc.instantiate("cw_not_stored", "i_test", &TestMsg {}, &key, None, vec![]);
@@ -417,6 +528,7 @@ mod tests {
 
     #[test]
     fn instantiate_cosmossdk_error() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -424,41 +536,39 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload, key.clone(), None, vec![])).then(
-            |(_, _, _, _, _)| {
-                Err(ClientError::CosmosSdk {
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, _| {
+                Err(ChainError::CosmosSdk {
                     res: ChainResponse {
-                        code: Code::Err(10),
-                        data: Some(vec![]),
-                        log: "error log".to_string(),
-                        gas_used: 1001,
-                        gas_wanted: 1002,
+                        code: Code::Err(1),
+                        data: None,
+                        log: "error".to_string(),
                     },
                 })
-            },
-        );
+            });
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc.instantiate("cw_test", "i_test", msg, &key, None, vec![]);
 
         assert_matches!(
             res.unwrap_err(),
-            ProcessError::ClientError(ClientError::CosmosSdk { .. })
+            ProcessError::CosmwasmError(CosmwasmError::TxError(TxError::AccountError(
+                AccountError::ChainError(ChainError::CosmosSdk { .. })
+            )))
         );
 
         assert_eq!(
@@ -473,6 +583,7 @@ mod tests {
 
     #[test]
     fn instantiate() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -480,37 +591,67 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload, key.clone(), None, vec![])).then(
-            |(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
-                        data: Some(vec![]),
-                        log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
+                        data: None,
+                        log: "log log log".to_string(),
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
-            },
-        );
+            });
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -525,15 +666,17 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, None);
+        assert_eq!(res.res.log, "log log log".to_string());
+        assert_eq!(res.height, 1234);
+        assert_eq!(res.tx_hash, "TX_HASH_0".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
 
         assert_eq!(cosm_orc.gas_profiler_report(), None);
@@ -541,6 +684,7 @@ mod tests {
 
     #[test]
     fn instantiate_with_profiler() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -548,37 +692,67 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload, key.clone(), None, vec![])).then(
-            |(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
-                        data: Some(vec![]),
+                        data: None,
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
-            },
-        );
+            });
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: Some(GasProfiler::new()),
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -593,15 +767,17 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, None);
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
+        assert_eq!(res.height, 1234);
+        assert_eq!(res.tx_hash, "TX_HASH_0".to_string());
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
 
         let report = cosm_orc.gas_profiler_report().unwrap();
@@ -619,16 +795,15 @@ mod tests {
 
     #[test]
     fn execute_not_stored() {
+        let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc.execute("cw_not_stored", "e_test", &TestMsg {}, &key, vec![]);
@@ -650,6 +825,7 @@ mod tests {
 
     #[test]
     fn execute_not_initialized() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
@@ -657,15 +833,13 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -694,6 +868,7 @@ mod tests {
 
     #[test]
     fn execute_cosmossdk_error() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -701,54 +876,67 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload.clone(), key.clone(), None, vec![]))
-            .then(|(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
-        faux::when!(mock_client.execute(
-            "cosmos_contract_addr".to_string(),
-            payload,
-            key.clone(),
-            vec![]
-        ))
-        .then(|(_, _, _, _)| {
-            Err(ClientError::CosmosSdk {
-                res: ChainResponse {
-                    code: Code::Err(10),
-                    data: Some(vec![]),
-                    log: "error log".to_string(),
-                    gas_used: 1001,
-                    gas_wanted: 1002,
-                },
-            })
-        });
-
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -763,22 +951,46 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
+
+        let mut mock_client = MockCosmosClient::new();
+
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, _| {
+                Err(ChainError::CosmosSdk {
+                    res: ChainResponse {
+                        code: Code::Err(1),
+                        data: None,
+                        log: "error".to_string(),
+                    },
+                })
+            });
+
+        let mut cosm_orc = CosmOrc {
+            contract_map: cosm_orc.contract_map,
+            client: CosmTome::new(cfg, mock_client),
+            gas_profiler: None,
+            tx_options: TxOptions::default(),
+        };
 
         let res = cosm_orc.execute("cw_test", "e_test", msg, &key, vec![]);
 
         assert_matches!(
             res.unwrap_err(),
-            ProcessError::ClientError(ClientError::CosmosSdk { .. })
+            ProcessError::CosmwasmError(CosmwasmError::TxError(TxError::AccountError(
+                AccountError::ChainError { .. }
+            )))
         );
 
         assert_eq!(cosm_orc.gas_profiler_report(), None);
@@ -786,6 +998,7 @@ mod tests {
 
     #[test]
     fn execute() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -793,56 +1006,67 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload.clone(), key.clone(), None, vec![]))
-            .then(|(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(2)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(2).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(2)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
-        faux::when!(mock_client.execute(
-            "cosmos_contract_addr".to_string(),
-            payload,
-            key.clone(),
-            vec![]
-        ))
-        .then(|(_, _, _, _)| {
-            Ok(ExecResponse {
-                res: ChainResponse {
-                    code: Code::Ok,
-                    data: Some(vec![]),
-                    log: "log".to_string(),
-                    gas_used: 2001,
-                    gas_wanted: 2002,
-                },
-                height: 1234,
-                tx_hash: "35AD02A".to_string(),
-            })
-        });
-
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -857,15 +1081,15 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
         assert_eq!(cosm_orc.gas_profiler_report(), None);
 
@@ -873,17 +1097,19 @@ mod tests {
             .execute("cw_test", "e_test", msg, &key, vec![])
             .unwrap()
             .res;
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "log".to_string());
-        assert_eq!(res.gas_used, 2001);
-        assert_eq!(res.gas_wanted, 2002);
+
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
+        assert_eq!(res.gas_used, 100);
+        assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
     #[test]
     fn execute_with_profiler() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -891,56 +1117,67 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload.clone(), key.clone(), None, vec![]))
-            .then(|(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(2)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(2).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(2)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
-        faux::when!(mock_client.execute(
-            "cosmos_contract_addr".to_string(),
-            payload,
-            key.clone(),
-            vec![]
-        ))
-        .then(|(_, _, _, _)| {
-            Ok(ExecResponse {
-                res: ChainResponse {
-                    code: Code::Ok,
-                    data: Some(vec![]),
-                    log: "log".to_string(),
-                    gas_used: 2001,
-                    gas_wanted: 2002,
-                },
-                height: 1234,
-                tx_hash: "35AD02A".to_string(),
-            })
-        });
-
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: Some(GasProfiler::new()),
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -955,15 +1192,15 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
 
         let report = cosm_orc.gas_profiler_report().unwrap();
@@ -982,11 +1219,11 @@ mod tests {
             .execute("cw_test", "e_test", msg, &key, vec![])
             .unwrap()
             .res;
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "log".to_string());
-        assert_eq!(res.gas_used, 2001);
-        assert_eq!(res.gas_wanted, 2002);
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
+        assert_eq!(res.gas_used, 100);
+        assert_eq!(res.gas_wanted, 101);
 
         let report = cosm_orc.gas_profiler_report().unwrap();
         assert_eq!(report.keys().len(), 1);
@@ -997,16 +1234,18 @@ mod tests {
             .unwrap()
             .get("Execute__e_test")
             .unwrap();
-        assert_eq!(r.gas_used, 2001);
-        assert_eq!(r.gas_wanted, 2002);
+        assert_eq!(r.gas_used, 100);
+        assert_eq!(r.gas_wanted, 101);
     }
 
     #[test]
     fn query_not_stored() {
+        let cfg = test_cfg();
         let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(HashMap::new()),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc.query("cw_not_stored", &TestMsg {});
@@ -1028,6 +1267,7 @@ mod tests {
 
     #[test]
     fn query_not_initialized() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_not_init".to_string(),
             DeployInfo {
@@ -1038,8 +1278,9 @@ mod tests {
 
         let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -1068,6 +1309,7 @@ mod tests {
 
     #[test]
     fn query_cosmossdk_error() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -1075,50 +1317,80 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload.clone(), key.clone(), None, vec![]))
-            .then(|(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
-        faux::when!(mock_client.query("cosmos_contract_addr".to_string(), payload)).then(
-            |(_, _)| {
-                Err(ClientError::CosmosSdk {
+        mock_client
+            .expect_query::<QuerySmartContractStateRequest, QuerySmartContractStateResponse>()
+            .times(1)
+            .returning(move |_, _| {
+                Err(ChainError::CosmosSdk {
                     res: ChainResponse {
-                        code: Code::Err(10),
-                        data: Some(vec![]),
-                        log: "error log".to_string(),
-                        gas_used: 1001,
-                        gas_wanted: 1002,
+                        code: Code::Err(1),
+                        data: None,
+                        log: "error".to_string(),
                     },
                 })
-            },
-        );
+            });
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -1133,29 +1405,27 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
 
         let res = cosm_orc.query("cw_test", msg);
 
-        assert_matches!(
-            res.unwrap_err(),
-            ProcessError::ClientError(ClientError::CosmosSdk { .. })
-        );
+        assert_matches!(res.unwrap_err(), ProcessError::CosmwasmError(..));
 
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
     #[test]
     fn query() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
@@ -1163,50 +1433,72 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
-        faux::when!(mock_client.instantiate(1337, payload.clone(), key.clone(), None, vec![]))
-            .then(|(_, _, _, _, _)| {
-                Ok(InstantiateResponse {
-                    address: "cosmos_contract_addr".to_string(),
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
-        faux::when!(mock_client.query("cosmos_contract_addr".to_string(), payload)).then(
-            |(_, _)| {
-                Ok(QueryResponse {
-                    res: ChainResponse {
-                        code: Code::Ok,
-                        data: Some(vec![]),
-                        log: "log".to_string(),
-                        gas_used: 2001,
-                        gas_wanted: 2002,
-                    },
-                })
-            },
-        );
+        mock_client
+            .expect_query::<QuerySmartContractStateRequest, QuerySmartContractStateResponse>()
+            .times(1)
+            .returning(move |_, _| Ok(QuerySmartContractStateResponse { data: vec![] }));
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         assert_eq!(
@@ -1221,40 +1513,37 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "cosmos_contract_addr".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
         assert_eq!(cosm_orc.gas_profiler_report(), None);
 
-        let res = cosm_orc.query("cw_test", msg).unwrap().res;
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "log".to_string());
-        assert_eq!(res.gas_used, 2001);
-        assert_eq!(res.gas_wanted, 2002);
+        let res = cosm_orc.query("cw_test", msg).unwrap();
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
 
         assert_eq!(cosm_orc.gas_profiler_report(), None);
     }
 
     #[test]
     fn store_invalid_wasm_dir() {
+        let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmWasmClient::faux(),
+            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc.store_contracts("invalid_dir", &key, None);
@@ -1263,44 +1552,77 @@ mod tests {
 
     #[test]
     fn migrate() {
+        let cfg = test_cfg();
         let code_ids = HashMap::from([(
             "cw_test".to_string(),
             DeployInfo {
                 code_id: Some(1337),
-                address: Some("addr1".to_string()),
+                address: Some("juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()),
             },
         )]);
-        let key = SigningKey {
-            name: "test".to_string(),
-            key: Key::Mnemonic("word1 word2".to_string()),
-        };
+        let key = SigningKey::random_mnemonic("test".to_string());
 
         let msg = &TestMsg {};
-        let payload = serde_json::to_vec(msg).unwrap();
 
-        let mut mock_client = CosmWasmClient::faux();
+        let mut mock_client = MockCosmosClient::new();
 
         let new_code_id = 1338;
 
-        faux::when!(mock_client.migrate("addr1".to_string(), new_code_id, payload, key.clone()))
-            .then(|(_, _, _, _)| {
-                Ok(MigrateResponse {
+        mock_client
+            .expect_query::<QueryAccountRequest, QueryAccountResponse>()
+            .times(1)
+            .returning(move |_, t: &str| {
+                Ok(QueryAccountResponse {
+                    account: Some(cosmos_sdk_proto::Any {
+                        type_url: t.to_owned(),
+                        value: BaseAccount {
+                            address: "juno10j9gpw9t4jsz47qgnkvl5n3zlm2fz72k67rxsg".to_string(),
+                            pub_key: None,
+                            account_number: 1221,
+                            sequence: 1,
+                        }
+                        .to_bytes()
+                        .unwrap(),
+                    }),
+                })
+            });
+
+        mock_client.expect_simulate_tx().times(1).returning(|_| {
+            Ok(GasInfo {
+                gas_wanted: 200u16.into(),
+                gas_used: 100u16.into(),
+            })
+        });
+
+        mock_client
+            .expect_broadcast_tx_block()
+            .times(1)
+            .returning(|_| {
+                Ok(ChainTxResponse {
                     res: ChainResponse {
                         code: Code::Ok,
                         data: Some(vec![]),
                         log: "".to_string(),
-                        gas_used: 100,
-                        gas_wanted: 101,
                     },
+                    events: vec![Event {
+                        type_str: "instantiate".to_string(),
+                        attributes: vec![Tag {
+                            key: "_contract_address".to_string(),
+                            value: "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string(),
+                        }],
+                    }],
+                    gas_wanted: 101,
+                    gas_used: 100,
+                    tx_hash: "TX_HASH_0".to_string(),
                     height: 1234,
-                    tx_hash: "35AD02A".to_string(),
                 })
             });
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: mock_client,
+            client: CosmTome::new(cfg.clone(), mock_client),
             gas_profiler: None,
+            tx_options: TxOptions::default(),
         };
 
         let res = cosm_orc
@@ -1308,15 +1630,15 @@ mod tests {
             .unwrap()
             .res;
 
-        assert_eq!(res.code, Code::Ok);
-        assert_eq!(res.data, Some(vec![]));
-        assert_eq!(res.log, "".to_string());
+        assert_eq!(res.res.code, Code::Ok);
+        assert_eq!(res.res.data, Some(vec![]));
+        assert_eq!(res.res.log, "".to_string());
         assert_eq!(res.gas_used, 100);
         assert_eq!(res.gas_wanted, 101);
 
         assert_eq!(
             cosm_orc.contract_map.address("cw_test").unwrap(),
-            "addr1".to_string()
+            "juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()
         );
 
         // code_id is the newly migrated id:

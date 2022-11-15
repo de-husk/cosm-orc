@@ -1,8 +1,7 @@
+use cosm_tome::chain::response::ChainTxResponse;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::panic::Location;
-
-use crate::client::chain_res::ChainResponse;
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum CommandType {
@@ -46,7 +45,7 @@ impl GasProfiler {
         contract: String,
         op_name: String,
         op_type: CommandType,
-        response: &ChainResponse,
+        response: &ChainTxResponse,
         caller_loc: &Location,
     ) {
         if op_type == CommandType::Query {

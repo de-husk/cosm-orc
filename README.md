@@ -2,7 +2,7 @@
 
 [![cosm-orc on crates.io](https://img.shields.io/crates/v/cosm-orc.svg)](https://crates.io/crates/cosm-orc) [![Docs](https://docs.rs/cosm-orc/badge.svg)](https://docs.rs/cosm-orc)
 
-Rust Cosmwasm smart contract integration testing and gas profiling library.
+Rust Cosmwasm smart contract integration testing and gas profiling library. If you need a more general Cosmos-sdk library try [cosm-tome](https://github.com/de-husk/cosm-tome), which we use here under the hood.
 
 Store, instantiate, execute, and query [Cosmwasm](https://github.com/CosmWasm/cosmwasm) smart contracts against a configured [Cosmos](https://github.com/cosmos/cosmos-sdk) based chain. 
 
@@ -13,7 +13,7 @@ Potential uses:
 * Deployments / Bootstrapping environments
 * Gas profiling
 
-This project is not yet intended to be used for mainnet.
+This project is not intended to be used for mainnet.
 
 ## Quick Start
 

@@ -22,8 +22,7 @@
 //! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::CosmOrc,
 //! # };
-//! # use cosm_orc::config::key::SigningKey;
-//! # use cosm_orc::config::key::Key;
+//! # use cosm_orc::orchestrator::{SigningKey, Key};
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 //! # use cw20::TokenInfoResponse;
 //! # fn main() -> Result<(), Box<dyn Error>> {
@@ -71,8 +70,7 @@
 //! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::CosmOrc,
 //! # };
-//! # use cosm_orc::config::key::SigningKey;
-//! # use cosm_orc::config::key::Key;
+//! # use cosm_orc::orchestrator::{SigningKey, Key};
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.yaml")?, false)?;
@@ -121,8 +119,7 @@
 //! #    config::cfg::Config,
 //! #    orchestrator::cosm_orc::CosmOrc,
 //! # };
-//! # use cosm_orc::config::key::SigningKey;
-//! # use cosm_orc::config::key::Key;
+//! # use cosm_orc::orchestrator::{SigningKey, Key};
 //! # use cw20_base::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 //! # fn main() -> Result<(), Box<dyn Error>> {
 //!  let mut cosm_orc = CosmOrc::new(Config::from_yaml("config.yaml")?, true)?;
@@ -158,5 +155,3 @@
 pub mod orchestrator;
 
 pub mod config;
-
-pub mod client;
