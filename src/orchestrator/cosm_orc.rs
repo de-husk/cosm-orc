@@ -1064,7 +1064,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), mock_client),
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1175,7 +1175,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), mock_client),
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: Some(GasProfiler::new()),
             tx_options: TxOptions::default(),
         };
@@ -1243,7 +1243,7 @@ mod tests {
         let cfg = test_cfg();
         let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(HashMap::new()),
-            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1278,7 +1278,7 @@ mod tests {
 
         let cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1388,7 +1388,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), mock_client),
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1496,7 +1496,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), mock_client),
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1541,7 +1541,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), MockCosmosClient::new()),
+            client: CosmTome::new(cfg, MockCosmosClient::new()),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
@@ -1620,7 +1620,7 @@ mod tests {
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
-            client: CosmTome::new(cfg.clone(), mock_client),
+            client: CosmTome::new(cfg, mock_client),
             gas_profiler: None,
             tx_options: TxOptions::default(),
         };
