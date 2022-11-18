@@ -1,7 +1,4 @@
 use thiserror::Error;
-use tokio::time::error::Elapsed;
-
-use crate::client::error::ClientError;
 
 #[derive(Error, Debug)]
 pub enum StoreError {
@@ -15,7 +12,7 @@ pub enum StoreError {
     InvalidWasmFileName,
 
     #[error(transparent)]
-    ClientError(#[from] ClientError),
+    CosmwasmError(#[from] CosmwasmError),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
@@ -40,7 +37,7 @@ pub enum ProcessError {
     ContractMapError(#[from] ContractMapError),
 
     #[error(transparent)]
-    ClientError(#[from] ClientError),
+    CosmwasmError(#[from] CosmwasmError),
 
     #[error(transparent)]
     IOError(#[from] std::io::Error),
@@ -75,5 +72,12 @@ pub enum PollBlockError {
     Timeout(#[from] Elapsed),
 
     #[error(transparent)]
-    ClientError(#[from] ClientError),
+    TendermintError(#[from] TendermintError),
 }
+
+pub use cosm_tome::chain::error::ChainError;
+pub use cosm_tome::modules::auth::error::AccountError;
+pub use cosm_tome::modules::cosmwasm::error::CosmwasmError;
+pub use cosm_tome::modules::tendermint::error::TendermintError;
+pub use cosm_tome::modules::tx::error::TxError;
+pub use tokio::time::error::Elapsed;
