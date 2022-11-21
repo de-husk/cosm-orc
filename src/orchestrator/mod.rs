@@ -6,6 +6,16 @@ pub mod error;
 
 pub mod gas_profiler;
 
+/// Batch wasm execute request
+pub struct ExecReq {
+    /// Deployed smart contract name for the corresponding `msg`
+    pub contract_name: String,
+    /// ExecuteMsg that `contract_name` supports
+    pub msg: Box<dyn erased_serde::Serialize>,
+    /// Optional tokens transferred to the contract after execution
+    pub funds: Vec<Coin>,
+}
+
 pub use cosm_tome::chain::coin::{Coin, Denom};
 pub use cosm_tome::chain::fee::{Fee, Gas};
 pub use cosm_tome::chain::response::{ChainResponse, ChainTxResponse, Code};
