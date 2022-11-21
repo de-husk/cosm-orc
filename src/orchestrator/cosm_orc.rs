@@ -17,6 +17,7 @@ use cosm_tome::clients::client::{CosmTome, CosmosClient};
 use cosm_tome::clients::cosmos_grpc::CosmosgRPC;
 use cosm_tome::clients::tendermint_rpc::TendermintRPC;
 use cosm_tome::modules::auth::model::Address;
+use cosm_tome::modules::cosmwasm::error::CosmwasmError;
 use cosm_tome::modules::cosmwasm::model::{
     ExecRequest, ExecResponse, InstantiateRequest, InstantiateResponse, MigrateRequest,
     MigrateResponse, QueryResponse, StoreCodeRequest, StoreCodeResponse,
@@ -25,6 +26,7 @@ use cosm_tome::modules::tendermint::error::TendermintError;
 use cosm_tome::signing_key::key::SigningKey;
 
 use super::error::{PollBlockError, ProcessError, StoreError};
+use super::ExecReq;
 use crate::config::cfg::Config;
 use crate::orchestrator::deploy::ContractMap;
 use crate::orchestrator::gas_profiler::{CommandType, GasProfiler, Report};
@@ -286,6 +288,65 @@ impl<C: CosmosClient> CosmOrc<C> {
         if let Some(p) = &mut self.gas_profiler {
             p.instrument(
                 contract_name,
+                op_name,
+                CommandType::Execute,
+                &res.res,
+                Location::caller(),
+            );
+        }
+
+        debug!("{:?}", res.res);
+
+        Ok(res)
+    }
+
+    /// Executes multiple smart contract operations against the configured chain.
+    ///
+    /// # Arguments
+    /// * `op_name` - Human readable operation name for profiling bookkeeping usage.
+    /// * `reqs` - Wasm execute msgs to batch into a single a tx.
+    /// * `key` - SigningKey used to sign the tx.
+    ///
+    /// # Errors
+    /// * If `contract_name` has not been instantiated via [Self::instantiate()]
+    ///   `cosm_orc::orchestrator::error::ContractMapError::NotDeployed` is thrown.
+    #[track_caller]
+    pub fn execute_batch<S, I>(
+        &mut self,
+        op_name: S,
+        reqs: I,
+        key: &SigningKey,
+    ) -> Result<ExecResponse, ProcessError>
+    where
+        S: Into<String>,
+        I: IntoIterator<Item = ExecReq>,
+    {
+        let op_name = op_name.into();
+
+        let reqs = reqs
+            .into_iter()
+            .map(|r| -> Result<_, ProcessError> {
+                let addr = self.contract_map.address(&r.contract_name)?;
+
+                Ok(ExecRequest {
+                    address: addr
+                        .parse()
+                        .map_err(|e| ProcessError::CosmwasmError(CosmwasmError::AccountError(e)))?,
+                    msg: r.msg,
+                    funds: r.funds,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let res = tokio_block(async {
+            self.client
+                .wasm_execute_batch(reqs, key, &self.tx_options)
+                .await
+        })?;
+
+        if let Some(p) = &mut self.gas_profiler {
+            p.instrument(
+                "multiple_contracts".to_string(),
                 op_name,
                 CommandType::Execute,
                 &res.res,
