@@ -39,7 +39,7 @@ use super::error::OptimizeError;
 #[derive(Clone)]
 pub struct CosmOrc<C: CosmosClient> {
     pub contract_map: ContractMap,
-    client: CosmTome<C>,
+    pub client: CosmTome<C>,
     gas_profiler: Option<GasProfiler>,
     tx_options: TxOptions,
 }
@@ -503,7 +503,7 @@ impl<C: CosmosClient> CosmOrc<C> {
     }
 }
 
-pub(crate) fn tokio_block<F: Future>(f: F) -> F::Output {
+pub fn tokio_block<F: Future>(f: F) -> F::Output {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
