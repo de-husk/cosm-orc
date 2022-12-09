@@ -151,7 +151,7 @@ impl<C: CosmosClient> CosmOrc<C> {
                     .ok_or(StoreError::InvalidWasmFileName)?;
 
                 // parse out OS architecture if optimizoor was used:
-                let arch_suffix = format!("-{}", ARCH);
+                let arch_suffix = format!("-{ARCH}");
                 if contract.to_string().ends_with(&arch_suffix) {
                     contract = contract.trim_end_matches(&arch_suffix);
                 }
