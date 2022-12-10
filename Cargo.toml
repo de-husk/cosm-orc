@@ -16,7 +16,7 @@ license = "Apache-2.0"
 optimize = ["cw-optimizoor"]
 
 [dependencies]
-cosm-tome = { version = "0.1.0" }
+cosm-tome = { version = "0.1.1" }
 
 thiserror = "1.0.31"
 erased-serde = "0.3"
