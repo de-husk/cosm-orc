@@ -1,6 +1,6 @@
 [package]
 name = "cosm-orc"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2021"
 authors = ["Harry Hull <harry.hull1@gmail.com>"]
 
@@ -29,7 +29,7 @@ tokio = { version = "1.20.1", default-features=false }
 cw-optimizoor = { version = "0.8.0", optional = true }
 
 [dev-dependencies]
-cosm-tome = { version = "0.1.0", features = ["mocks"] }
+cosm-tome = { version = "0.1.1", features = ["mocks"] }
 cosmos-sdk-proto = "0.15.0"
 
 assert_matches = "1.5"
