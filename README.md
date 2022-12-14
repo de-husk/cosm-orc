@@ -14,6 +14,7 @@ Potential uses:
 * Integration tests
 * Deployments / Bootstrapping environments
 * Gas profiling
+* Realistic adversarial testing
 
 This project is not intended to be used for mainnet.
 
