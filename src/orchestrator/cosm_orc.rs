@@ -497,6 +497,57 @@ impl<C: CosmosClient> CosmOrc<C> {
         Ok(())
     }
 
+    /// Blocks the current thread until `n` block header seconds have passed.
+    ///
+    /// Local system time can differ from block header time, so this can be used to reliably wait n block seconds
+    /// before some action can be taken in a smart contract.
+    ///
+    /// # Arguments
+    /// * `n` - Wait for this number of block header seconds to pass.
+    /// * `timeout` - Throws `PollBlockError` once `timeout` has elapsed.
+    pub fn poll_for_n_secs<T: Into<Duration> + Send>(
+        &self,
+        n: u64,
+        timeout: T,
+    ) -> Result<(), PollBlockError> {
+        tokio_block(async {
+            _timeout(timeout.into(), async {
+                let mut curr_time_secs = self
+                    .client
+                    .tendermint_query_latest_block()
+                    .await?
+                    .block
+                    .header
+                    .unwrap()
+                    .time
+                    .unwrap()
+                    .seconds as u64;
+
+                let target_time = curr_time_secs + n;
+
+                while curr_time_secs < target_time {
+                    time::sleep(Duration::from_millis(500)).await;
+
+                    curr_time_secs = self
+                        .client
+                        .tendermint_query_latest_block()
+                        .await?
+                        .block
+                        .header
+                        .unwrap()
+                        .time
+                        .unwrap()
+                        .seconds as u64;
+                }
+
+                Ok::<(), PollBlockError>(())
+            })
+            .await
+        })??;
+
+        Ok(())
+    }
+
     /// Get gas usage report
     pub fn gas_profiler_report(&self) -> Option<&Report> {
         self.gas_profiler.as_ref().map(|p| p.report())
