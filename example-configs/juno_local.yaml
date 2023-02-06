@@ -7,8 +7,9 @@ chain_cfg:
   grpc_endpoint: "http://localhost:9090/"
   # Set the rpc endpoint to use the Tendermint RPC api
   # rpc_endpoint: "http://localhost:26657/"
-  gas_prices: 0.1
+  gas_price: 0.1
   gas_adjustment: 1.5
+  derivation_path: "m/44'/118'/0'/0/0"
 
 # optional list of pre-stored code_ids:
 contract_deploy_info:

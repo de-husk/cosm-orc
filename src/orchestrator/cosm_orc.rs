@@ -603,7 +603,8 @@ mod tests {
             chain_id: "test-1".to_string(),
             rpc_endpoint: None,
             grpc_endpoint: Some("localhost:12690".to_string()),
-            gas_prices: 0.1,
+            derivation_path: "m/44'/118'/0'/0/0".to_string(),
+            gas_price: 0.1,
             gas_adjustment: 1.5,
         }
     }
@@ -612,7 +613,7 @@ mod tests {
     fn instantiate_not_stored() {
         let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
@@ -648,7 +649,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -703,7 +704,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -804,7 +805,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -909,7 +910,7 @@ mod tests {
     fn execute_not_stored() {
         let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
@@ -945,7 +946,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
@@ -988,7 +989,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -1118,7 +1119,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -1229,7 +1230,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -1429,7 +1430,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -1545,7 +1546,7 @@ mod tests {
                 address: None,
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 
@@ -1649,7 +1650,7 @@ mod tests {
     fn store_invalid_wasm_dir() {
         let cfg = test_cfg();
         let code_ids = HashMap::new();
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let mut cosm_orc = CosmOrc {
             contract_map: ContractMap::new(code_ids),
@@ -1672,7 +1673,7 @@ mod tests {
                 address: Some("juno1ft5zfffrgtm2u72cup9e2ecfxjwz8ztc929cgj".to_string()),
             },
         )]);
-        let key = SigningKey::random_mnemonic("test".to_string());
+        let key = SigningKey::random_mnemonic("test".to_string(), cfg.derivation_path.clone());
 
         let msg = &TestMsg {};
 

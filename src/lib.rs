@@ -32,6 +32,7 @@
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
 //!      key: Key::Mnemonic("word1 word2 ...".to_string()),
+//!      derivation_path: "m/44'/118'/0'/0/0".to_string(),
 //!  };
 //!    
 //!  cosm_orc.instantiate(
@@ -78,6 +79,7 @@
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
 //!      key: Key::Mnemonic("word1 word2 ...".to_string()),
+//!      derivation_path: "m/44'/118'/0'/0/0".to_string(),
 //!   };
 //!
 //!  // `./artifacts` is a directory that contains the rust optimized wasm files.
@@ -127,6 +129,7 @@
 //!  let key = SigningKey {
 //!      name: "validator".to_string(),
 //!      key: Key::Mnemonic("word1 word2 ...".to_string()),
+//!      derivation_path: "m/44'/118'/0'/0/0".to_string(),
 //!  };
 //!
 //!  cosm_orc.instantiate(
