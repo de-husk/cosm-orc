@@ -27,6 +27,7 @@ let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.
 let key = SigningKey {
     name: "validator".to_string(),
     key: Key::Mnemonic("word1 word2 ...".to_string()),
+    derivation_path: "m/44'/118'/0'/0/0".to_string(),
 };
 
 cosm_orc.instantiate(
@@ -62,6 +63,7 @@ let mut cosm_orc = CosmOrc::new(Config::from_yaml("./example-configs/juno_local.
 let key = SigningKey {
     name: "validator".to_string(),
     key: Key::Mnemonic("word1 word2 ...".to_string()),
+    derivation_path: "m/44'/118'/0'/0/0".to_string(),
 };
 
 // Build + optimize all smart contracts in current workspace
