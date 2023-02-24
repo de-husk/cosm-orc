@@ -158,3 +158,7 @@
 pub mod orchestrator;
 
 pub mod config;
+
+// re-export all of cosm-tome in case people want to use arbitrary
+// cosmtome types when accessing the underlying `cosm_orc.client`
+pub use cosm_tome;
