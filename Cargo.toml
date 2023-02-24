@@ -16,7 +16,7 @@ license = "Apache-2.0"
 optimize = ["cw-optimizoor"]
 
 [dependencies]
-cosm-tome = { version = "0.2.0" }
+cosm-tome = { version = "0.2.1" }
 
 thiserror = "1.0.31"
 erased-serde = "0.3"
@@ -29,7 +29,7 @@ tokio = { version = "1.20.1", default-features=false }
 cw-optimizoor = { version = "0.8.0", optional = true }
 
 [dev-dependencies]
-cosm-tome = { version = "0.2.0", features = ["mocks"] }
+cosm-tome = { version = "0.2.1", features = ["mocks"] }
 cosmos-sdk-proto = "0.15.0"
 
 assert_matches = "1.5"
